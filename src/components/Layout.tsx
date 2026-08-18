@@ -77,30 +77,43 @@ export function Header() {
   const { setCurrentView, sites, links } = useAppContext();
   
   const handleExportApp = () => {
-    const exportData = {
-      sites,
-      links,
-      exportDate: new Date().toISOString(),
-      appName: 'RF NEXUS | Network Planner Pro'
-    };
-    
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "rf_nexus_export.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+    try {
+      const exportData = {
+        sites,
+        links,
+        exportDate: new Date().toISOString(),
+        appName: 'Radio Network Management System'
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.href = url;
+      downloadAnchorNode.download = "radio_network_export.json";
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      
+      setTimeout(() => {
+        document.body.removeChild(downloadAnchorNode);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Export is not supported in this preview environment. Please open the app in a new tab.");
+    }
   };
   
   return (
     <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0">
       <div className="flex items-center gap-4">
-        <div className="bg-blue-600 p-1.5 rounded shadow-sm">
-          <Activity className="w-5 h-5 text-white" />
-        </div>
-        <h1 className="text-lg font-bold tracking-tight text-slate-800">
-          RF NEXUS <span className="text-slate-400 font-normal ml-2">| Network Planner Pro</span>
+        <img 
+          src="/Pakistan_Inter_Services_(Emblem).png" 
+          alt="Logo" 
+          className="w-8 h-8 object-contain drop-shadow-sm"
+        />
+        <h1 className="text-lg font-bold tracking-tight text-slate-800 whitespace-nowrap">
+          Radio Network Management System
         </h1>
       </div>
       <div className="flex items-center gap-3">

@@ -8,11 +8,14 @@ import { AppProvider, useAppContext } from './context/AppContext';
 import { Sidebar, Header, StatusBar } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { GISMap } from './components/GISMap';
+import { SitesNodes } from './components/SitesNodes';
 import { RFLinkBudget } from './components/RFLinkBudget';
 import { TerrainProfile } from './components/TerrainProfile';
 import { EquipmentDB } from './components/EquipmentDB';
 import { Simulation } from './components/Simulation';
 import { Reports } from './components/Reports';
+import { CoveragePrediction } from './components/CoveragePrediction';
+import { FrequencyPlanning } from './components/FrequencyPlanning';
 
 function MainContent() {
   const { currentView } = useAppContext();
@@ -21,8 +24,11 @@ function MainContent() {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
       case 'gis-map': return <GISMap />;
+      case 'sites': return <SitesNodes />;
       case 'rf-links': return <RFLinkBudget />;
+      case 'frequency': return <FrequencyPlanning />;
       case 'terrain': return <TerrainProfile />;
+      case 'coverage': return <CoveragePrediction />;
       case 'database': return <EquipmentDB />;
       case 'simulation': return <Simulation />;
       case 'reports': return <Reports />;

@@ -6,8 +6,11 @@ interface AppState {
   setCurrentView: (view: View) => void;
   sites: Site[];
   addSite: (site: Site) => void;
+  removeSite: (id: string) => void;
+  updateSite: (site: Site) => void;
   links: RFLink[];
   addLink: (link: RFLink) => void;
+  updateLink: (link: RFLink) => void;
   equipmentDB: Equipment[];
 }
 
@@ -18,14 +21,14 @@ const defaultEquipment: Equipment[] = [
 ];
 
 const defaultSites: Site[] = [
-  { id: 's1', name: 'SITE-01 (HQ)', lat: 34.0522, lng: -118.2437, elevation: 150, type: 'base-station' },
-  { id: 's2', name: 'REPEATER-01 (Mt. Wilson)', lat: 34.2239, lng: -118.0610, elevation: 1740, type: 'repeater' },
-  { id: 's3', name: 'SITE-02 (Branch)', lat: 34.1478, lng: -118.1445, elevation: 200, type: 'base-station' },
+  { id: 's1', name: 'SITE-01 (Islamabad HQ)', lat: 33.6844, lng: 73.0479, elevation: 508, type: 'base-station', radioType: 'base', txPowerW: 50 },
+  { id: 's2', name: 'REPEATER-01 (Murree)', lat: 33.9070, lng: 73.3943, elevation: 2291, type: 'repeater', radioType: 'base', txPowerW: 50 },
+  { id: 's3', name: 'SITE-02 (Rawalpindi)', lat: 33.5973, lng: 73.0479, elevation: 500, type: 'base-station', radioType: 'vehicular', txPowerW: 25 },
 ];
 
 const defaultLinks: RFLink[] = [
-  { id: 'l1', sourceSiteId: 's1', targetSiteId: 's2', equipmentId: 'e1', distanceKm: 25.4, frequencyMHz: 155.5, txPowerDBm: 47, txAntennaGainDBi: 6, rxAntennaGainDBi: 6, txCableLossDB: 1.5, rxCableLossDB: 1.5, fadeMarginDB: 20 },
-  { id: 'l2', sourceSiteId: 's2', targetSiteId: 's3', equipmentId: 'e1', distanceKm: 12.2, frequencyMHz: 155.5, txPowerDBm: 47, txAntennaGainDBi: 6, rxAntennaGainDBi: 6, txCableLossDB: 1.5, rxCableLossDB: 1.5, fadeMarginDB: 20 },
+  { id: 'l1', sourceSiteId: 's1', targetSiteId: 's2', equipmentId: 'e1', distanceKm: 40.5, frequencyMHz: 155.5, txPowerDBm: 47, txAntennaGainDBi: 6, rxAntennaGainDBi: 6, txCableLossDB: 1.5, rxCableLossDB: 1.5, fadeMarginDB: 20 },
+  { id: 'l2', sourceSiteId: 's2', targetSiteId: 's3', equipmentId: 'e1', distanceKm: 45.2, frequencyMHz: 155.5, txPowerDBm: 47, txAntennaGainDBi: 6, rxAntennaGainDBi: 6, txCableLossDB: 1.5, rxCableLossDB: 1.5, fadeMarginDB: 20 },
 ];
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -37,13 +40,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [equipmentDB] = useState<Equipment[]>(defaultEquipment);
 
   const addSite = (site: Site) => setSites([...sites, site]);
+  const removeSite = (id: string) => {
+    setSites(sites.filter(s => s.id !== id));
+    // Remove links connected to the deleted site
+    setLinks(links.filter(l => l.sourceSiteId !== id && l.targetSiteId !== id));
+  };
+  const updateSite = (updatedSite: Site) => {
+    setSites(sites.map(s => s.id === updatedSite.id ? updatedSite : s));
+  };
   const addLink = (link: RFLink) => setLinks([...links, link]);
+
+  const updateLink = (updatedLink: RFLink) => {
+    setLinks(links.map(l => l.id === updatedLink.id ? updatedLink : l));
+  };
 
   return (
     <AppContext.Provider value={{
       currentView, setCurrentView,
-      sites, addSite,
-      links, addLink,
+      sites, addSite, removeSite, updateSite,
+      links, addLink, updateLink,
       equipmentDB
     }}>
       {children}

@@ -18,6 +18,8 @@ export interface Site {
   lng: number;
   elevation: number;
   type: 'repeater' | 'base-station' | 'subscriber' | 'microwave-node';
+  radioType?: 'base' | 'vehicular' | 'walkie-talkie' | 'custom';
+  txPowerW?: number;
 }
 
 export interface Equipment {
