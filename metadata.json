@@ -1,0 +1,8 @@
+{
+  "name": "Remix RF Network Planning \u0026 Simulation Suite",
+  "description": "A professional engineering workspace for RF network planning, simulation, link budget calculations, and GIS terrain analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
