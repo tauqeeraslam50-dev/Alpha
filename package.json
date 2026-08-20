@@ -21,20 +21,10 @@
     "appId": "com.rfnetwork.rnms",
     "productName": "Radio Network Management System",
     "copyright": "Copyright © 2026 Tauqeer Aslam",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron-main.cjs",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
-    },
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "electron-main.cjs", "preload.cjs", "package.json"],
+    "extraResources": [{ "from": "rnms-data", "to": "rnms-data" }],
+    "win": { "target": ["nsis", "portable"] },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
