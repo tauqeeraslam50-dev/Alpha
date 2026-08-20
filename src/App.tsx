@@ -8,9 +8,9 @@ import { AppProvider, useAppContext } from './context/AppContext';
 import { Sidebar, Header, StatusBar } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { GISMap } from './components/GISMap';
+import { OfflineGISMap } from './components/OfflineGISMap';
 import { SitesNodes } from './components/SitesNodes';
 import { RFLinkBudget } from './components/RFLinkBudget';
-import { TerrainProfile } from './components/TerrainProfile';
 import { LineOfSightAnalysis } from './components/LineOfSightAnalysis';
 import { EquipmentDB } from './components/EquipmentDB';
 import { Simulation } from './components/Simulation';
@@ -23,11 +23,10 @@ import { AboutModal } from './components/AboutModal';
 
 function MainContent() {
   const { currentView, theme } = useAppContext();
-
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
-      case 'gis-map': return <GISMap />;
+      case 'gis-map': return <OfflineGISMap />;
       case 'sites': return <SitesNodes />;
       case 'equipment': return <EquipmentDB />;
       case 'rf-links': return <RFLinkBudget />;
@@ -40,63 +39,15 @@ function MainContent() {
       case 'database': return <EquipmentDB />;
       case 'simulation': return <Simulation />;
       case 'reports': return <Reports />;
-      default:
-        return (
-          <div className="flex items-center justify-center h-full p-6">
-            <div className="w-full h-full flex flex-col items-center justify-center bg-white border border-slate-300 rounded-xl shadow-sm">
-              <div className="text-6xl mb-4 opacity-30">📡</div>
-              <h2 className="text-xl font-bold text-slate-700">Module in Development</h2>
-              <p className="mt-2 text-sm text-slate-500 font-medium">
-                The <span className="uppercase text-blue-600 font-bold mx-1">{currentView.replace('-', ' ')}</span> module is currently being engineered.
-              </p>
-            </div>
-          </div>
-        );
+      default: return <div className="flex items-center justify-center h-full p-6"><div className="w-full h-full flex flex-col items-center justify-center bg-white border border-slate-300 rounded-xl shadow-sm"><div className="text-6xl mb-4 opacity-30">📡</div><h2 className="text-xl font-bold text-slate-700">Module in Development</h2><p className="mt-2 text-sm text-slate-500 font-medium">The <span className="uppercase text-blue-600 font-bold mx-1">{currentView.replace('-', ' ')}</span> module is currently being engineered.</p></div></div>;
     }
   };
-
-  return (
-    <main className={`flex-1 flex flex-col relative overflow-y-auto ${
-      theme === 'light' ? 'bg-[#f1f5f9]' : 'bg-slate-950'
-    }`}>
-      <div 
-        className="absolute inset-0 opacity-40 pointer-events-none min-h-full" 
-        style={{ 
-          backgroundImage: theme === 'light' 
-            ? 'radial-gradient(#cbd5e1 0.75px, transparent 0.75px)' 
-            : 'radial-gradient(#334155 0.75px, transparent 0.75px)', 
-          backgroundSize: '20px 20px' 
-        }}
-      ></div>
-      <div className="relative z-10 flex-1 flex flex-col">
-        {renderView()}
-      </div>
-    </main>
-  );
+  return <main className={`flex-1 flex flex-col relative overflow-y-auto ${theme === 'light' ? 'bg-[#f1f5f9]' : 'bg-slate-950'}`}><div className="absolute inset-0 opacity-40 pointer-events-none min-h-full" style={{ backgroundImage: theme === 'light' ? 'radial-gradient(#cbd5e1 0.75px, transparent 0.75px)' : 'radial-gradient(#334155 0.75px, transparent 0.75px)', backgroundSize: '20px 20px' }}></div><div className="relative z-10 flex-1 flex flex-col">{renderView()}</div></main>;
 }
 
 function AppShell() {
   const { theme } = useAppContext();
-
-  return (
-    <div className={`flex flex-col h-screen font-sans overflow-hidden transition-colors duration-200 ${
-      theme === 'light' ? 'bg-[#f8fafc] text-slate-900' : 'bg-slate-900 text-slate-100 dark'
-    }`}>
-      <Header />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <MainContent />
-      </div>
-      <StatusBar />
-      <AboutModal />
-    </div>
-  );
+  return <div className={`flex flex-col h-screen font-sans overflow-hidden transition-colors duration-200 ${theme === 'light' ? 'bg-[#f8fafc] text-slate-900' : 'bg-slate-900 text-slate-100 dark'}`}><Header /><div className="flex flex-1 overflow-hidden"><Sidebar /><MainContent /></div><StatusBar /><AboutModal /></div>;
 }
 
-export default function App() {
-  return (
-    <AppProvider>
-      <AppShell />
-    </AppProvider>
-  );
-}
+export default function App() { return <AppProvider><AppShell /></AppProvider>; }
