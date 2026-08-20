@@ -1,4 +1,4 @@
-/** Runtime DEM cache for real SRTM/HGT terrain. */
+/** Real SRTM/HGT DEM runtime cache. HGT samples are signed 16-bit BIG-ENDIAN. */
 export interface RuntimeDemTile { name: string; size: number; values: Int16Array; }
 const tiles = new Map<string, RuntimeDemTile>();
 const loading = new Map<string, Promise<boolean>>();
@@ -19,14 +19,24 @@ export function registerDemTile(name: string, size: number, values: Int16Array):
   tiles.set(name.toUpperCase(), { name: name.toUpperCase(), size, values });
 }
 
+export function registerHgtBuffer(name: string, buffer: ArrayBuffer, size: number): boolean {
+  const expected = size * size;
+  if (!Number.isInteger(size) || size < 2 || size > 7201 || buffer.byteLength !== expected * 2) return false;
+  const view = new DataView(buffer);
+  const values = new Int16Array(expected);
+  for (let i = 0; i < expected; i++) values[i] = view.getInt16(i * 2, false);
+  registerDemTile(name, size, values);
+  return true;
+}
+
 export function clearDemTiles(): void { tiles.clear(); loading.clear(); }
 export function getLoadedDemTileCount(): number { return tiles.size; }
+export function isDemTileLoaded(name: string): boolean { return tiles.has(name.toUpperCase()); }
 
 export function getRuntimeElevation(lat: number, lng: number): number | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90) return null;
   const tile = tiles.get(hgtTileName(lat, lng).toUpperCase());
   if (!tile) return null;
-
   const latBase = Math.floor(lat);
   const lngBase = Math.floor(normalizeLongitude(lng));
   const latFraction = lat - latBase;
@@ -58,10 +68,7 @@ export async function loadDemTile(name: string): Promise<boolean> {
   if (loading.has(normalized)) return loading.get(normalized)!;
   const promise = window.rnmsOffline.loadDemTile(normalized).then(payload => {
     if (!payload?.buffer || !payload.size) return false;
-    const values = new Int16Array(payload.buffer);
-    if (values.length !== payload.size * payload.size) return false;
-    registerDemTile(payload.name, payload.size, values);
-    return true;
+    return registerHgtBuffer(payload.name, payload.buffer, payload.size);
   }).catch(() => false).finally(() => loading.delete(normalized));
   loading.set(normalized, promise);
   return promise;
@@ -71,4 +78,10 @@ export async function loadDemForCoordinates(points: Array<{lat: number; lng: num
   const names = [...new Set(points.map(p => hgtTileName(p.lat, p.lng).toUpperCase()))];
   const results = await Promise.all(names.map(loadDemTile));
   return results.filter(Boolean).length;
+}
+
+export async function loadDemForPath(points: Array<{lat: number; lng: number}>): Promise<{requested: number; loaded: number}> {
+  const requested = new Set(points.map(p => hgtTileName(p.lat, p.lng).toUpperCase()));
+  const loaded = await loadDemForCoordinates(points);
+  return { requested: requested.size, loaded };
 }
