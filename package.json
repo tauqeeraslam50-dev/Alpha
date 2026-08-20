@@ -3,18 +3,49 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron-main.cjs",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "clean": "rm -rf dist server.js release",
+    "lint": "tsc --noEmit",
+    "electron:dev": "electron .",
+    "electron:build": "vite build && electron-builder --win nsis",
+    "electron:portable": "vite build && electron-builder --win portable",
+    "electron:pack": "vite build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.rfnetwork.rnms",
+    "productName": "Radio Network Management System",
+    "copyright": "Copyright © 2026 Tauqeer Aslam",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
+    "d3": "^7.9.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "leaflet": "^1.9.4",
@@ -28,6 +59,7 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@types/d3": "^7.4.3",
     "@types/express": "^4.17.21",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22.14.0",

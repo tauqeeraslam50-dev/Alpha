@@ -11,24 +11,32 @@ import { GISMap } from './components/GISMap';
 import { SitesNodes } from './components/SitesNodes';
 import { RFLinkBudget } from './components/RFLinkBudget';
 import { TerrainProfile } from './components/TerrainProfile';
+import { LineOfSightAnalysis } from './components/LineOfSightAnalysis';
 import { EquipmentDB } from './components/EquipmentDB';
 import { Simulation } from './components/Simulation';
 import { Reports } from './components/Reports';
 import { CoveragePrediction } from './components/CoveragePrediction';
 import { FrequencyPlanning } from './components/FrequencyPlanning';
+import { MicrowaveBackhaul } from './components/MicrowaveBackhaul';
+import { OfflineMapManager } from './components/OfflineMapManager';
+import { AboutModal } from './components/AboutModal';
 
 function MainContent() {
-  const { currentView } = useAppContext();
+  const { currentView, theme } = useAppContext();
 
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
       case 'gis-map': return <GISMap />;
       case 'sites': return <SitesNodes />;
+      case 'equipment': return <EquipmentDB />;
       case 'rf-links': return <RFLinkBudget />;
       case 'frequency': return <FrequencyPlanning />;
-      case 'terrain': return <TerrainProfile />;
+      case 'terrain': return <LineOfSightAnalysis />;
+      case 'los': return <LineOfSightAnalysis />;
       case 'coverage': return <CoveragePrediction />;
+      case 'microwave': return <MicrowaveBackhaul />;
+      case 'offline-manager': return <OfflineMapManager />;
       case 'database': return <EquipmentDB />;
       case 'simulation': return <Simulation />;
       case 'reports': return <Reports />;
@@ -48,8 +56,18 @@ function MainContent() {
   };
 
   return (
-    <main className="flex-1 flex flex-col relative bg-slate-200 overflow-y-auto">
-      <div className="absolute inset-0 bg-[#e5e7eb] opacity-40 pointer-events-none min-h-full" style={{ backgroundImage: 'radial-gradient(#94a3b8 0.5px, transparent 0.5px)', backgroundSize: '20px 20px' }}></div>
+    <main className={`flex-1 flex flex-col relative overflow-y-auto ${
+      theme === 'light' ? 'bg-[#f1f5f9]' : 'bg-slate-950'
+    }`}>
+      <div 
+        className="absolute inset-0 opacity-40 pointer-events-none min-h-full" 
+        style={{ 
+          backgroundImage: theme === 'light' 
+            ? 'radial-gradient(#cbd5e1 0.75px, transparent 0.75px)' 
+            : 'radial-gradient(#334155 0.75px, transparent 0.75px)', 
+          backgroundSize: '20px 20px' 
+        }}
+      ></div>
       <div className="relative z-10 flex-1 flex flex-col">
         {renderView()}
       </div>
@@ -57,17 +75,28 @@ function MainContent() {
   );
 }
 
+function AppShell() {
+  const { theme } = useAppContext();
+
+  return (
+    <div className={`flex flex-col h-screen font-sans overflow-hidden transition-colors duration-200 ${
+      theme === 'light' ? 'bg-[#f8fafc] text-slate-900' : 'bg-slate-900 text-slate-100 dark'
+    }`}>
+      <Header />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <MainContent />
+      </div>
+      <StatusBar />
+      <AboutModal />
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <AppProvider>
-      <div className="flex flex-col h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden">
-        <Header />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
-          <MainContent />
-        </div>
-        <StatusBar />
-      </div>
+      <AppShell />
     </AppProvider>
   );
 }

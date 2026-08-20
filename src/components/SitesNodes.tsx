@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppContext } from '../context/AppContext';
-import { MapPin, Plus, Search, Filter, Trash2, Edit } from 'lucide-react';
+import { MapPin, Plus, Search, Filter, Trash2, Edit, Activity, AlertTriangle } from 'lucide-react';
 import { Site } from '../types';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { searchOfflineLocations } from '../lib/offlineGeo';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -31,27 +32,92 @@ function LocationPicker({ lat, lng, onChange }: { lat: number, lng: number, onCh
     },
   });
 
-  // Pan to new location if coordinates change externally
-  useEffect(() => {
-    map.panTo([lat, lng]);
-  }, [lat, lng, map]);
-
   return <Marker position={[lat, lng]} />;
 }
 
+// Component to fly to searched location
+function MapFlyTo({ position }: { position: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (position) {
+      map.flyTo(position, 13, { duration: 1.5 });
+    }
+  }, [position, map]);
+  return null;
+}
+
 export function SitesNodes() {
-  const { sites, addSite, removeSite, updateSite, setCurrentView } = useAppContext();
+  const { sites, addSite, removeSite, updateSite, clearAllSites, setCurrentView } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [siteToDelete, setSiteToDelete] = useState<string | null>(null);
+  const [isClearAllConfirmOpen, setIsClearAllConfirmOpen] = useState(false);
+
+  // Search State for Modal
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [modalSearchResults, setModalSearchResults] = useState<any[]>([]);
+  const [modalIsSearching, setModalIsSearching] = useState(false);
+  const [modalShowSearchResults, setModalShowSearchResults] = useState(false);
+  const [searchedPosition, setSearchedPosition] = useState<[number, number] | null>(null);
 
   const confirmDelete = () => {
     if (siteToDelete) {
       removeSite(siteToDelete);
       setSiteToDelete(null);
     }
+  };
+
+  const handleModalSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalSearchQuery.trim()) return;
+
+    // 1. 100% Offline Search (Gazetteer & GPS Coordinates)
+    const offlineMatches = searchOfflineLocations(modalSearchQuery);
+    if (offlineMatches.length > 0) {
+      setModalSearchResults(offlineMatches.map(m => ({
+        display_name: m.displayName,
+        lat: m.lat,
+        lon: m.lng
+      })));
+      setModalShowSearchResults(true);
+      return;
+    }
+
+    // 2. Fallback
+    setModalIsSearching(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(modalSearchQuery)}&limit=5`);
+      if (res.ok) {
+        const data = await res.json();
+        setModalSearchResults(data);
+        setModalShowSearchResults(true);
+      }
+    } catch {
+      setModalSearchResults([{
+        display_name: `Location not found: "${modalSearchQuery}"`,
+        lat: formData.lat || 33.6844,
+        lon: formData.lng || 73.0479,
+        isError: true
+      }]);
+      setModalShowSearchResults(true);
+    } finally {
+      setModalIsSearching(false);
+    }
+  };
+
+  const handleSelectModalSearchResult = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    
+    setSearchedPosition([lat, lng]);
+    
+    // Auto fill name with the selected city
+    const cleanName = result.display_name.split(' (')[0].split(',')[0];
+    setFormData(prev => ({ ...prev, lat, lng, name: cleanName }));
+    setModalShowSearchResults(false);
+    setModalSearchQuery(cleanName);
   };
 
   // Default new site coordinates to Islamabad, Pakistan
@@ -62,7 +128,9 @@ export function SitesNodes() {
     elevation: 0,
     type: 'base-station',
     radioType: 'base',
-    txPowerW: 50
+    txPowerW: 50,
+    txFreqMHz: undefined,
+    rxFreqMHz: undefined
   });
 
   const filteredSites = sites.filter(site => {
@@ -85,7 +153,9 @@ export function SitesNodes() {
           elevation: Number(formData.elevation) || 0,
           type: formData.type as any,
           radioType: formData.radioType || 'base',
-          txPowerW: Number(formData.txPowerW) || 50
+          txPowerW: Number(formData.txPowerW) || 50,
+          txFreqMHz: formData.txFreqMHz ? Number(formData.txFreqMHz) : undefined,
+          rxFreqMHz: formData.rxFreqMHz ? Number(formData.rxFreqMHz) : undefined
         });
       } else if (modalMode === 'edit' && formData.id) {
         updateSite({
@@ -96,11 +166,13 @@ export function SitesNodes() {
           elevation: Number(formData.elevation) || 0,
           type: formData.type as any,
           radioType: formData.radioType || 'base',
-          txPowerW: Number(formData.txPowerW) || 0
+          txPowerW: Number(formData.txPowerW) || 0,
+          txFreqMHz: formData.txFreqMHz ? Number(formData.txFreqMHz) : undefined,
+          rxFreqMHz: formData.rxFreqMHz ? Number(formData.rxFreqMHz) : undefined
         });
       }
       setIsModalOpen(false);
-      setFormData({ name: '', lat: 33.6844, lng: 73.0479, elevation: 0, type: 'base-station', radioType: 'base', txPowerW: 50 });
+      setFormData({ name: '', lat: 33.6844, lng: 73.0479, elevation: 0, type: 'base-station', radioType: 'base', txPowerW: 50, txFreqMHz: undefined, rxFreqMHz: undefined });
     }
   };
 
@@ -111,17 +183,28 @@ export function SitesNodes() {
           <h2 className="text-xl font-bold text-slate-800">Sites & Nodes</h2>
           <p className="text-sm text-slate-500">Manage network locations, repeaters, and base stations.</p>
         </div>
-        <button 
-          onClick={() => {
-            setModalMode('add');
-            setFormData({ name: '', lat: 33.6844, lng: 73.0479, elevation: 0, type: 'base-station', radioType: 'base', txPowerW: 50 });
-            setIsModalOpen(true);
-          }}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded shadow-sm hover:bg-blue-700 transition flex items-center"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add New Site
-        </button>
+        <div className="flex gap-3">
+          {sites.length > 0 && (
+            <button 
+              onClick={() => setIsClearAllConfirmOpen(true)}
+              className="px-4 py-2 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 text-sm font-semibold rounded shadow-sm transition flex items-center"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear All Data
+            </button>
+          )}
+          <button 
+            onClick={() => {
+              setModalMode('add');
+              setFormData({ name: '', lat: 33.6844, lng: 73.0479, elevation: 0, type: 'base-station', radioType: 'base', txPowerW: 50, txFreqMHz: undefined, rxFreqMHz: undefined });
+              setIsModalOpen(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded shadow-sm hover:bg-blue-700 transition flex items-center"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add New Site
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-300 flex-1 flex flex-col overflow-hidden">
@@ -151,6 +234,7 @@ export function SitesNodes() {
               <option value="all">All Types</option>
               <option value="base-station">Base Station</option>
               <option value="repeater">Repeater</option>
+              <option value="relay">Relay</option>
               <option value="subscriber">Subscriber</option>
               <option value="microwave-node">Microwave Node</option>
             </select>
@@ -177,7 +261,8 @@ export function SitesNodes() {
                     <td className="py-3 px-4">
                       <div className="flex items-center">
                         <div className={`w-8 h-8 rounded flex items-center justify-center mr-3 ${
-                          site.type === 'repeater' ? 'bg-indigo-100 text-indigo-600' :
+                          site.type === 'repeater' ? 'bg-yellow-100 text-yellow-600' :
+                          site.type === 'relay' ? 'bg-orange-100 text-orange-600' :
                           site.type === 'base-station' ? 'bg-blue-100 text-blue-600' :
                           'bg-slate-100 text-slate-600'
                         }`}>
@@ -191,7 +276,8 @@ export function SitesNodes() {
                     </td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
-                        site.type === 'repeater' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                        site.type === 'repeater' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                        site.type === 'relay' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
                         site.type === 'base-station' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                         'bg-slate-100 text-slate-700 border border-slate-200'
                       }`}>
@@ -295,6 +381,7 @@ export function SitesNodes() {
                     >
                       <option value="base-station">Base Station</option>
                       <option value="repeater">Repeater</option>
+                      <option value="relay">Relay</option>
                       <option value="subscriber">Subscriber</option>
                       <option value="microwave-node">Microwave Node</option>
                     </select>
@@ -341,6 +428,31 @@ export function SitesNodes() {
                       value={formData.txPowerW ?? 50}
                       onChange={e => setFormData({...formData, txPowerW: Number(e.target.value), radioType: 'custom'})}
                       className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">TX Freq (MHz)</label>
+                    <input 
+                      type="number" 
+                      step="0.00001"
+                      value={formData.txFreqMHz || ''}
+                      onChange={e => setFormData({...formData, txFreqMHz: Number(e.target.value)})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                      placeholder="e.g. 155.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">RX Freq (MHz)</label>
+                    <input 
+                      type="number" 
+                      step="0.00001"
+                      value={formData.rxFreqMHz || ''}
+                      onChange={e => setFormData({...formData, rxFreqMHz: Number(e.target.value)})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                      placeholder="e.g. 155.5"
                     />
                   </div>
                 </div>
@@ -394,20 +506,79 @@ export function SitesNodes() {
 
               {/* Map Side */}
               <div className="w-1/2 bg-slate-100 relative">
+                
+                {/* Search Bar Overlay */}
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur border border-slate-200 rounded-lg z-[1000] shadow-md w-80">
+                  <form onSubmit={handleModalSearch} className="flex items-center p-1">
+                    <input 
+                      type="text" 
+                      placeholder="Search city, location, or coords..." 
+                      value={modalSearchQuery}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setModalSearchQuery(val);
+                        if (val.trim().length >= 2) {
+                          const offlineMatches = searchOfflineLocations(val);
+                          if (offlineMatches.length > 0) {
+                            setModalSearchResults(offlineMatches.map(m => ({
+                              display_name: m.displayName,
+                              lat: m.lat,
+                              lon: m.lng
+                            })));
+                            setModalShowSearchResults(true);
+                          } else {
+                            setModalShowSearchResults(false);
+                          }
+                        } else {
+                          setModalShowSearchResults(false);
+                        }
+                      }}
+                      className="w-full text-sm p-2 outline-none bg-transparent"
+                    />
+                    <button type="submit" className="p-2 text-slate-500 hover:text-blue-600 transition" disabled={modalIsSearching}>
+                      {modalIsSearching ? <Activity className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    </button>
+                  </form>
+                  
+                  {/* Search Results Dropdown */}
+                  {modalShowSearchResults && modalSearchResults.length > 0 && (
+                    <div className="border-t border-slate-100 max-h-64 overflow-y-auto">
+                      {modalSearchResults.map((result, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectModalSearchResult(result)}
+                          className="w-full text-left px-4 py-2 text-xs hover:bg-slate-50 border-b border-slate-50 last:border-0 truncate flex items-start"
+                        >
+                          <MapPin className="w-3 h-3 mr-2 mt-0.5 text-slate-400 flex-shrink-0" />
+                          <span className="text-slate-700">{result.display_name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {modalShowSearchResults && modalSearchResults.length === 0 && !modalIsSearching && (
+                    <div className="border-t border-slate-100 p-3 text-xs text-slate-500 text-center">
+                      No locations found
+                    </div>
+                  )}
+                </div>
+
                 <MapContainer 
                   center={[formData.lat || 33.6844, formData.lng || 73.0479]} 
                   zoom={12} 
-                  className="w-full h-full absolute inset-0"
+                  className="w-full h-full absolute inset-0 z-0"
                 >
                   <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    maxZoom={19}
                   />
                   <LocationPicker 
                     lat={formData.lat || 33.6844} 
                     lng={formData.lng || 73.0479} 
                     onChange={(lat, lng) => setFormData(prev => ({ ...prev, lat, lng }))} 
                   />
+                  <MapFlyTo position={searchedPosition} />
                 </MapContainer>
               </div>
             </div>
@@ -435,6 +606,39 @@ export function SitesNodes() {
                 className="px-4 py-2 text-sm font-semibold text-white bg-rose-500 rounded hover:bg-rose-600"
               >
                 Delete Site
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Clear All Data Modal */}
+      {isClearAllConfirmOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col p-6 border-t-4 border-rose-500">
+            <h3 className="font-bold text-slate-800 text-lg mb-2 flex items-center">
+              <AlertTriangle className="w-5 h-5 text-rose-500 mr-2" />
+              Wipe Network Data?
+            </h3>
+            <p className="text-slate-600 mb-6 text-sm">
+              This will permanently delete all Sites, Nodes, and RF Links from the current workspace. This action cannot be undone. Are you sure?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setIsClearAllConfirmOpen(false)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-300 rounded hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  clearAllSites();
+                  setIsClearAllConfirmOpen(false);
+                }}
+                className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 rounded hover:bg-rose-700"
+              >
+                Yes, Wipe Everything
               </button>
             </div>
           </div>
