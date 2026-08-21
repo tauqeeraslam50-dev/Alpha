@@ -18,6 +18,12 @@ declare global {
       }>;
       loadDemTile: (tileName: string) => Promise<{ name: string; buffer: ArrayBuffer; size: number } | null>;
       listDemTiles: () => Promise<string[]>;
+      selectMapFiles?: () => Promise<string[] | null>;
+      selectDemFolder?: () => Promise<string | null>;
+      installMapFiles?: (files: string[]) => Promise<unknown>;
+      installDemFolder?: (folder: string) => Promise<unknown>;
+      removeMapAsset?: (name: string) => Promise<unknown>;
+      validateAssets?: () => Promise<unknown>;
     };
   }
 }
