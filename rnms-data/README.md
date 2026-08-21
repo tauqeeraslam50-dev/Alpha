@@ -1,29 +1,55 @@
 # RNMS Offline GIS Data
 
-This directory is intentionally separate from application code so large GIS datasets are not embedded in source files.
+This directory is the external data layer for Alpha's real offline GIS engine. Large geographic datasets are deliberately not committed to GitHub.
 
-## Satellite / raster tiles
+## Required Pakistan datasets
 
-Place XYZ raster tiles under:
+### Satellite imagery
 
-`maps/tiles/satellite/{z}/{x}/{y}.jpg`
+Install a legally licensed Pakistan-wide satellite archive as:
 
-PNG and WebP are also supported. The Electron runtime serves these files through the local `rnms://tiles/...` protocol; no Internet tile provider is required.
+`maps/pakistan-satellite.pmtiles`
 
-## Terrain tiles
+The archive should contain the imagery tiles and metadata required by the PMTiles reader. The application does not download imagery automatically.
 
-Place terrain raster tiles under:
+### Terrain
 
-`maps/tiles/terrain/{z}/{x}/{y}.png`
+Install a legally licensed terrain archive as:
 
-## DEM
+`maps/pakistan-terrain.pmtiles`
 
-Place real SRTM/HGT files under:
+### DEM / SRTM
+
+Place genuine one-degree SRTM/HGT elevation files under:
 
 `dem/N33E073.hgt`
 
-The loader supports standard square HGT tiles and bilinear interpolation. Missing DEM tiles are reported as unavailable rather than replaced by synthetic elevation.
+Supported standard HGT dimensions are 1201×1201 (approximately 90 m), 3601×3601 (approximately 30 m), and 7201×7201 (approximately 15 m) samples. Alpha validates the dimensions and refuses unsupported HGT files.
 
-## Pakistan coverage
+## Windows deployment
 
-Use legally licensed imagery/terrain datasets for the Pakistan coverage package. The application provides the import/runtime architecture; large imagery and DEM datasets are intentionally not committed to Git.
+The executable can be distributed separately from the GIS data:
+
+```text
+RNMS/
+├── Radio Network Management System.exe
+└── rnms-data/
+    ├── maps/
+    │   ├── pakistan-satellite.pmtiles
+    │   └── pakistan-terrain.pmtiles
+    └── dem/
+        ├── N33E073.hgt
+        └── ...
+```
+
+The application first checks for `rnms-data` beside the executable. This makes it possible to replace or expand large GIS datasets without rebuilding the application.
+
+## Data manager
+
+Use **Offline Manager → Pakistan Satellite + DEM Data Manager** to install PMTiles, import a folder containing HGT files, scan installed GIS data, validate HGT dimensions, inspect dataset sizes, remove installed satellite/terrain archives, and verify that the application is using real local data.
+
+No online tile server or synthetic elevation is used by the offline GIS path.
+
+## Licensing
+
+Only use imagery, terrain, and elevation datasets that you are legally permitted to store and redistribute. The Alpha source repository contains the integration code, not third-party geographic datasets.
