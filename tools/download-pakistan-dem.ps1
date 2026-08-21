@@ -19,10 +19,10 @@ $downloaded = 0
 $skipped = 0
 $failed = @()
 
-Write-Host "Pakistan SRTM 30 m HGT acquisition" -ForegroundColor Cyan
+Write-Host "Pakistan SRTM GL1 (~30 m) HGT acquisition" -ForegroundColor Cyan
 Write-Host "Output: $OutputRoot"
 Write-Host "Coverage grid: ${South}..$North N, ${West}..$East E"
-Write-Host "Source: ESA STEP SRTMGL1 archive"
+Write-Host "Source: OpenTopography public SRTM GL1 mirror"
 Write-Host ""
 
 for ($lat = $South; $lat -lt $North; $lat++) {
@@ -31,8 +31,8 @@ for ($lat = $South; $lat -lt $North; $lat++) {
     $target = Join-Path $OutputRoot "$tile.hgt"
     if (Test-Path $target) { $skipped++; continue }
 
-    $zip = Join-Path $env:TEMP "$tile.SRTMGL1.hgt.zip"
-    $url = "https://step.esa.int/auxdata/dem/SRTMGL1/$tile.SRTMGL1.hgt.zip"
+    $zip = Join-Path $env:TEMP "$tile.zip"
+    $url = "https://opentopography.s3.sdsc.edu/raster/SRTM_GL1/$tile.SRTMGL1.hgt.zip"
     try {
       Write-Host "[$($downloaded + $skipped + 1)] $tile" -NoNewline
       Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
@@ -40,6 +40,9 @@ for ($lat = $South; $lat -lt $North; $lat++) {
       $extracted = Join-Path $env:TEMP "$tile.SRTMGL1.hgt"
       if (-not (Test-Path $extracted)) { $extracted = Join-Path $env:TEMP "$tile.hgt" }
       if (-not (Test-Path $extracted)) { throw "Archive did not contain expected HGT file" }
+
+      $bytes = (Get-Item $extracted).Length
+      if ($bytes -ne (2 * 3601 * 3601)) { throw "Unexpected HGT size: $bytes bytes; expected SRTM GL1 3601x3601" }
       Move-Item -Force $extracted $target
       $downloaded++
       Write-Host "  OK" -ForegroundColor Green
