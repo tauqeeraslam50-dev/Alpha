@@ -19,40 +19,46 @@ $downloaded = 0
 $skipped = 0
 $failed = @()
 
-Write-Host "Pakistan SRTM GL1 (~30 m) HGT acquisition" -ForegroundColor Cyan
+Write-Host "Pakistan SRTM 1 arc-second (~30 m) HGT acquisition" -ForegroundColor Cyan
 Write-Host "Output: $OutputRoot"
 Write-Host "Coverage grid: ${South}..$North N, ${West}..$East E"
-Write-Host "Source: OpenTopography public SRTM GL1 mirror"
+Write-Host "Source: public SRTM elevation archive"
 Write-Host ""
 
 for ($lat = $South; $lat -lt $North; $lat++) {
+  $band = ('{0}{1:00}' -f $(if ($lat -ge 0) {'N'} else {'S'}), [Math]::Abs($lat))
   for ($lon = $West; $lon -lt $East; $lon++) {
     $tile = TileName $lat $lon
     $target = Join-Path $OutputRoot "$tile.hgt"
     if (Test-Path $target) { $skipped++; continue }
 
-    $zip = Join-Path $env:TEMP "$tile.zip"
-    $url = "https://opentopography.s3.sdsc.edu/raster/SRTM_GL1/$tile.SRTMGL1.hgt.zip"
+    $gz = Join-Path $env:TEMP "$tile.hgt.gz"
+    $url = "https://s3.amazonaws.com/elevation-tiles-prod/skadi/$band/$tile.hgt.gz"
     try {
       Write-Host "[$($downloaded + $skipped + 1)] $tile" -NoNewline
-      Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-      Expand-Archive -Path $zip -DestinationPath $env:TEMP -Force
-      $extracted = Join-Path $env:TEMP "$tile.SRTMGL1.hgt"
-      if (-not (Test-Path $extracted)) { $extracted = Join-Path $env:TEMP "$tile.hgt" }
-      if (-not (Test-Path $extracted)) { throw "Archive did not contain expected HGT file" }
+      Invoke-WebRequest -Uri $url -OutFile $gz -UseBasicParsing
+      $input = [System.IO.File]::OpenRead($gz)
+      try {
+        $output = [System.IO.File]::Create($target)
+        try {
+          $gzip = New-Object System.IO.Compression.GZipStream($input, [System.IO.Compression.CompressionMode]::Decompress)
+          try { $gzip.CopyTo($output) } finally { $gzip.Dispose() }
+        } finally { $output.Dispose() }
+      } finally { $input.Dispose() }
 
-      $bytes = (Get-Item $extracted).Length
-      if ($bytes -ne (2 * 3601 * 3601)) { throw "Unexpected HGT size: $bytes bytes; expected SRTM GL1 3601x3601" }
-      Move-Item -Force $extracted $target
+      $bytes = (Get-Item $target).Length
+      if ($bytes -ne (2 * 3601 * 3601)) {
+        Remove-Item -Force $target
+        throw "Unexpected HGT size: $bytes bytes; expected 3601x3601 SRTM GL1"
+      }
       $downloaded++
       Write-Host "  OK" -ForegroundColor Green
     } catch {
+      Remove-Item -Force -ErrorAction SilentlyContinue $target
       $failed += "$tile : $($_.Exception.Message)"
       Write-Host "  unavailable" -ForegroundColor Yellow
     } finally {
-      Remove-Item -Force -ErrorAction SilentlyContinue $zip
-      Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:TEMP "$tile.SRTMGL1.hgt")
-      Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:TEMP "$tile.hgt")
+      Remove-Item -Force -ErrorAction SilentlyContinue $gz
     }
   }
 }
@@ -63,4 +69,4 @@ if ($failed.Count) {
   Write-Host "Unavailable tiles:" -ForegroundColor Yellow
   $failed | ForEach-Object { Write-Host " - $_" }
 }
-Write-Host "The application will index valid HGT files automatically after Scan Data / restart."
+Write-Host "The application can now Scan Data and load real HGT elevation for LOS testing."
