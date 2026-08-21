@@ -12,6 +12,7 @@ import { OfflineGISMap } from './components/OfflineGISMap';
 import { SitesNodes } from './components/SitesNodes';
 import { RFLinkBudget } from './components/RFLinkBudget';
 import { LineOfSightAnalysis } from './components/LineOfSightAnalysis';
+import { RealLOSProfiler } from './components/RealLOSProfiler';
 import { EquipmentDB } from './components/EquipmentDB';
 import { Simulation } from './components/Simulation';
 import { Reports } from './components/Reports';
@@ -31,8 +32,8 @@ function MainContent() {
       case 'equipment': return <EquipmentDB />;
       case 'rf-links': return <RFLinkBudget />;
       case 'frequency': return <FrequencyPlanning />;
-      case 'terrain': return <LineOfSightAnalysis />;
-      case 'los': return <LineOfSightAnalysis />;
+      case 'terrain': return <RealLOSProfiler />;
+      case 'los': return <RealLOSProfiler />;
       case 'coverage': return <CoveragePrediction />;
       case 'microwave': return <MicrowaveBackhaul />;
       case 'offline-manager': return <OfflineMapManager />;
