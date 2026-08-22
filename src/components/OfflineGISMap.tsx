@@ -29,7 +29,7 @@ export function OfflineGISMap() {
   const [demLoading, setDemLoading] = useState(false);
   const [demReady, setDemReady] = useState(false);
   const [onlineMode, setOnlineMode] = useState(false);
-  const center: [number, number] = sites.length ? [sites[0].lat, sites[0].lng] : [30.3753, 69.3451];
+  const center: [number, number] = sites.length ? [sites[0].lat, sites[0].lng] : [33.817, 72.347];
 
   const refreshMapInfo = async () => { const info = await window.rnmsOffline?.getMapInfo?.(); setMapInfo(info ?? null); setDemCount(getLoadedDemTileCount()); };
   useEffect(() => { refreshMapInfo(); }, []);
@@ -55,19 +55,22 @@ export function OfflineGISMap() {
     return analyzeLineOfSightWithRuntimeDem({ txLat: sites[0].lat, txLng: sites[0].lng, txElevationM: sites[0].elevation, txTowerHeightM: 30, txName: sites[0].name, rxLat: sites[1].lat, rxLng: sites[1].lng, rxElevationM: sites[1].elevation, rxTowerHeightM: 30, rxName: sites[1].name, frequencyMHz: sites[0].txFreqMHz || 155.5, kFactor: 1.333, clutterHeightM: 0, samplePointsCount: 100 });
   }, [sites, demReady]);
 
-  const satellitePMTiles = mapInfo?.satellitePMTilesAvailable ? 'rnms://pmtiles/pakistan-satellite.pmtiles' : null;
-  const terrainPMTiles = mapInfo?.terrainPMTilesAvailable ? 'rnms://pmtiles/pakistan-terrain.pmtiles' : null;
+  const satellitePMTiles = mapInfo?.satellitePMTilesAvailable
+    ? `${mapInfo.pmtilesBaseUrl || 'http://127.0.0.1:39777/pmtiles/'}pakistan-satellite.pmtiles`
+    : null;
+  const terrainPMTiles = mapInfo?.terrainPMTilesAvailable
+    ? `${mapInfo.pmtilesBaseUrl || 'http://127.0.0.1:39777/pmtiles/'}pakistan-terrain.pmtiles`
+    : null;
   const satelliteReady = Boolean(satellitePMTiles);
   const terrainReady = Boolean(terrainPMTiles);
   const activeOffline = !onlineMode;
 
   return <div className="relative h-full w-full overflow-hidden bg-slate-200 dark:bg-slate-950">
-    <MapContainer center={center} zoom={6} className="h-full w-full z-0" zoomControl>
-      {activeOffline && layer === 'satellite' && satellitePMTiles && <PMTilesLayer url={satellitePMTiles} maxZoom={18} attribution="Offline licensed satellite imagery · PMTiles" />}
-      {activeOffline && layer === 'terrain' && terrainPMTiles && <PMTilesLayer url={terrainPMTiles} maxZoom={17} attribution="Offline terrain imagery · PMTiles" />}
+    <MapContainer center={center} zoom={10} minZoom={8} maxZoom={15} className="h-full w-full z-0" zoomControl>
+      {activeOffline && layer === 'satellite' && satellitePMTiles && <PMTilesLayer url={satellitePMTiles} minZoom={8} maxZoom={15} attribution="Offline licensed satellite imagery · PMTiles" />}
+      {activeOffline && layer === 'terrain' && terrainPMTiles && <PMTilesLayer url={terrainPMTiles} minZoom={0} maxZoom={17} attribution="Offline terrain imagery · PMTiles" />}
       {!activeOffline && layer === 'satellite' && <TileLayer attribution="Esri World Imagery" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={19} />}
       {!activeOffline && layer === 'terrain' && <TileLayer attribution="OpenTopoMap" url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png" maxZoom={17} />}
-      {!activeOffline && layer === 'none' && null}
       <DemInspector onSample={sampleElevation} />
       {links.map(link => { const a = sites.find(s => s.id === link.sourceSiteId); const b = sites.find(s => s.id === link.targetSiteId); return a && b ? <Polyline key={link.id} positions={[[a.lat, a.lng], [b.lat, b.lng]]} pathOptions={{ color: '#10b981', weight: 3, dashArray: '8 6' }} /> : null; })}
       {sites.map(site => <Marker key={site.id} position={[site.lat, site.lng]} icon={SiteIcon({ color: site.type === 'repeater' ? '#eab308' : '#2563eb', square: site.type === 'repeater' })}>
