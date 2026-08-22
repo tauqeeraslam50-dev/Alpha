@@ -29,7 +29,11 @@ export function OfflineGISMap() {
   const [demLoading, setDemLoading] = useState(false);
   const [demReady, setDemReady] = useState(false);
   const [onlineMode, setOnlineMode] = useState(false);
-  const center: [number, number] = sites.length ? [sites[0].lat, sites[0].lng] : [30.3753, 69.3451];
+
+  // The current satellite archive covers approximately 71.74–72.96 E, 33.31–34.32 N
+  // and starts at zoom 8. Start the offline map inside that real coverage so the
+  // installed archive is visible immediately instead of opening over empty imagery.
+  const center: [number, number] = sites.length ? [sites[0].lat, sites[0].lng] : [33.817, 72.347];
 
   const refreshMapInfo = async () => { const info = await window.rnmsOffline?.getMapInfo?.(); setMapInfo(info ?? null); setDemCount(getLoadedDemTileCount()); };
   useEffect(() => { refreshMapInfo(); }, []);
@@ -62,8 +66,8 @@ export function OfflineGISMap() {
   const activeOffline = !onlineMode;
 
   return <div className="relative h-full w-full overflow-hidden bg-slate-200 dark:bg-slate-950">
-    <MapContainer center={center} zoom={6} className="h-full w-full z-0" zoomControl>
-      {activeOffline && layer === 'satellite' && satellitePMTiles && <PMTilesLayer url={satellitePMTiles} maxZoom={18} attribution="Offline licensed satellite imagery · PMTiles" />}
+    <MapContainer center={center} zoom={10} minZoom={0} maxZoom={15} className="h-full w-full z-0" zoomControl>
+      {activeOffline && layer === 'satellite' && satellitePMTiles && <PMTilesLayer url={satellitePMTiles} minZoom={8} maxZoom={15} attribution="Offline licensed satellite imagery · PMTiles" />}
       {activeOffline && layer === 'terrain' && terrainPMTiles && <PMTilesLayer url={terrainPMTiles} maxZoom={17} attribution="Offline terrain imagery · PMTiles" />}
       {!activeOffline && layer === 'satellite' && <TileLayer attribution="Esri World Imagery" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={19} />}
       {!activeOffline && layer === 'terrain' && <TileLayer attribution="OpenTopoMap" url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png" maxZoom={17} />}
