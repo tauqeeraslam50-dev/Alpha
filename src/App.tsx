@@ -37,6 +37,7 @@ function MainContent() {
       case 'coverage': return <CoveragePrediction />;
       case 'microwave': return <MicrowaveBackhaul />;
       case 'offline-manager': return <OfflineMapManager />;
+      case 'gis-data-manager': return <OfflineMapManager />;
       case 'database': return <EquipmentDB />;
       case 'simulation': return <Simulation />;
       case 'reports': return <Reports />;
