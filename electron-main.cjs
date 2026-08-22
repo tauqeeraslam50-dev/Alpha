@@ -1,10 +1,12 @@
 const { app, BrowserWindow, Menu, shell, protocol, net, ipcMain, dialog } = require('electron');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'rnms', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 let mainWindow = null;
+const PMTILES_PORT = 39777;
 
 function getAssetRoots() {
   const candidates = [
@@ -25,7 +27,7 @@ function safeChild(root, requested) {
 function isHgt(name) { return /^(N|S)\d{2}(E|W)\d{3}\.hgt$/i.test(name); }
 function isPmtiles(name) { return /^[-a-z0-9_.]+\.pmtiles$/i.test(name); }
 function fileInfo(file) {
-  if (!fs.existsSync(file)) return null;
+  if (!file || !fs.existsSync(file)) return null;
   const stat = fs.statSync(file);
   return { sizeBytes: stat.size, modified: stat.mtime.toISOString() };
 }
@@ -47,7 +49,8 @@ function scanAssets() {
     terrain: terrainInfo ? { name: 'pakistan-terrain.pmtiles', ...terrainInfo } : null,
     demTileCount: demTiles.length,
     demTiles,
-    demResolution: demTiles.length ? inferHgtResolution(path.join(roots.dem, demTiles[0])) : null
+    demResolution: demTiles.length ? inferHgtResolution(path.join(roots.dem, demTiles[0])) : null,
+    pmtilesBaseUrl: `http://127.0.0.1:${PMTILES_PORT}/pmtiles/`
   };
 }
 function inferHgtResolution(file) {
@@ -83,8 +86,7 @@ function registerOfflineGIS() {
       const requestedEnd = match[2] ? Number(match[2]) : stat.size - 1;
       if (!Number.isSafeInteger(start) || start < 0 || start >= stat.size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${stat.size}`, 'Accept-Ranges': 'bytes' } });
       const end = Math.min(Number.isSafeInteger(requestedEnd) ? requestedEnd : stat.size - 1, stat.size - 1);
-      const stream = fs.createReadStream(file, { start, end });
-      return new Response(stream, { status: 206, headers: { 'Content-Type': 'application/vnd.pmtiles', 'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1), 'Content-Range': `bytes ${start}-${end}/${stat.size}`, 'Cache-Control': 'no-store' } });
+      return new Response(fs.createReadStream(file, { start, end }), { status: 206, headers: { 'Content-Type': 'application/vnd.pmtiles', 'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1), 'Content-Range': `bytes ${start}-${end}/${stat.size}`, 'Cache-Control': 'no-store' } });
     }
     const parts = url.pathname.split('/').filter(Boolean);
     if (url.host !== 'tiles' || parts.length !== 4) return new Response('Not found', { status: 404 });
@@ -186,8 +188,60 @@ function registerOfflineGIS() {
   });
 }
 
+function startPMTilesServer() {
+  const server = http.createServer((req, res) => {
+    try {
+      const pathname = new URL(req.url, `http://127.0.0.1:${PMTILES_PORT}`).pathname;
+      if (!pathname.startsWith('/pmtiles/')) { res.writeHead(404); return res.end(); }
+      const archive = decodeURIComponent(pathname.slice('/pmtiles/'.length));
+      if (!isPmtiles(archive)) { res.writeHead(400); return res.end('Bad PMTiles request'); }
+      const file = safeChild(getAssetRoots().maps, archive);
+      if (!file || !fs.existsSync(file)) { res.writeHead(404); return res.end('PMTiles archive not installed'); }
+      const stat = fs.statSync(file);
+      res.setHeader('Content-Type', 'application/vnd.pmtiles');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'no-store');
+      if (req.method === 'HEAD') {
+        res.setHeader('Content-Length', String(stat.size));
+        res.writeHead(200);
+        return res.end();
+      }
+      const range = req.headers.range;
+      if (!range) {
+        res.setHeader('Content-Length', String(stat.size));
+        res.writeHead(200);
+        return fs.createReadStream(file).pipe(res);
+      }
+      const match = /^bytes=(\d+)-(\d*)$/i.exec(range);
+      if (!match) {
+        res.setHeader('Content-Range', `bytes */${stat.size}`);
+        res.writeHead(416);
+        return res.end();
+      }
+      const start = Number(match[1]);
+      const requestedEnd = match[2] ? Number(match[2]) : stat.size - 1;
+      if (!Number.isSafeInteger(start) || start < 0 || start >= stat.size) {
+        res.setHeader('Content-Range', `bytes */${stat.size}`);
+        res.writeHead(416);
+        return res.end();
+      }
+      const end = Math.min(Number.isSafeInteger(requestedEnd) ? requestedEnd : stat.size - 1, stat.size - 1);
+      res.statusCode = 206;
+      res.setHeader('Content-Length', String(end - start + 1));
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+      fs.createReadStream(file, { start, end }).pipe(res);
+    } catch (error) {
+      res.writeHead(500);
+      res.end(String(error?.message || error));
+    }
+  });
+  server.listen(PMTILES_PORT, '127.0.0.1');
+  return server;
+}
+
 function createWindow() {
-  mainWindow = new BrowserWindow({ width: 1400, height: 900, minWidth: 1024, minHeight: 700, title: 'Radio Network Management System v1.0 - Offline GIS', backgroundColor: '#0f172a', backgroundThrottling: false, autoHideMenuBar: false, webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, 'preload.cjs'), webSecurity: false, allowRunningInsecureContent: true } });
+  mainWindow = new BrowserWindow({ width: 1400, height: 900, minWidth: 1024, minHeight: 700, title: 'Radio Network Management System v1.0 - Offline GIS', backgroundColor: '#0f172a', backgroundThrottling: false, autoHideMenuBar: false, webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, 'preload.cjs'), webSecurity: true, allowRunningInsecureContent: false } });
   const distPath = path.join(__dirname, 'dist', 'index.html');
   const rootPath = path.join(__dirname, 'index.html');
   if (fs.existsSync(distPath)) mainWindow.loadFile(distPath); else if (fs.existsSync(rootPath)) mainWindow.loadFile(rootPath); else mainWindow.loadURL('http://localhost:3000');
@@ -201,6 +255,6 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => { if (url.startsWith('http:') || url.startsWith('https:')) { shell.openExternal(url); return { action: 'deny' }; } return { action: 'allow' }; });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
-app.whenReady().then(() => { registerOfflineGIS(); createWindow(); });
+app.whenReady().then(() => { registerOfflineGIS(); startPMTilesServer(); createWindow(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
