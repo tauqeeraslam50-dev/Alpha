@@ -11,6 +11,7 @@ export type View =
   | 'terrain'
   | 'los'
   | 'offline-manager'
+  | 'gis-data-manager'
   | 'reports'
   | 'database';
 
@@ -45,11 +46,9 @@ export interface Equipment {
   channelSpacingKHz: number;
   antennaConnector: string;
   notes: string;
-  // DMR specific specs
   dmrTimeslots?: number;
   colorCode?: number;
   vocoder?: string;
-  // SDR specific specs
   sdrBandwidthMHz?: number;
   sdrSamplingRateMSps?: number;
   waveform?: string;
