@@ -153,17 +153,46 @@ function registerOfflineGIS() {
     const result = await dialog.showOpenDialog(mainWindow, { title: 'Select folder containing SRTM HGT files', properties: ['openDirectory'] });
     return result.canceled ? null : result.filePaths[0];
   });
-  ipcMain.handle('offline-install-map-files', async (_event, files) => {
+  ipcMain.handle('offline-install-map-files', async (event, files) => {
     const roots = getAssetRoots();
-    if (!Array.isArray(files) || files.length === 0) return { installed: [], skipped: [] };
-    const installed = [], skipped = [];
+    if (!Array.isArray(files) || files.length === 0) return { installed: [], skipped: [], info: scanAssets() };
+    const installed = [];
+    const skipped = [];
     for (const source of files) {
       if (typeof source !== 'string' || !isPmtiles(path.basename(source)) || !fs.existsSync(source)) { skipped.push(source); continue; }
       const lower = path.basename(source).toLowerCase();
       const destinationName = lower.includes('terrain') ? 'pakistan-terrain.pmtiles' : lower.includes('satellite') || lower.includes('imagery') ? 'pakistan-satellite.pmtiles' : null;
       if (!destinationName) { skipped.push(source); continue; }
-      await copyFileAtomic(source, path.join(roots.maps, destinationName));
-      installed.push(destinationName);
+      const destination = path.join(roots.maps, destinationName);
+      const temp = `${destination}.part`;
+      const sourceStat = await fs.promises.stat(source);
+      const totalBytes = sourceStat.size;
+      let copiedBytes = 0;
+      const startedAt = Date.now();
+      try {
+        await new Promise((resolve, reject) => {
+          const readStream = fs.createReadStream(source);
+          const writeStream = fs.createWriteStream(temp);
+          readStream.on('data', chunk => {
+            copiedBytes += chunk.length;
+            const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.001);
+            const speedBytesPerSecond = copiedBytes / elapsedSeconds;
+            const percent = totalBytes > 0 ? Math.min(100, copiedBytes / totalBytes * 100) : 0;
+            if (!event.sender.isDestroyed()) event.sender.send('offline-map-upload-progress', { fileName: destinationName, copiedBytes, totalBytes, percent, speedBytesPerSecond, status: 'uploading' });
+          });
+          readStream.on('error', reject);
+          writeStream.on('error', reject);
+          writeStream.on('finish', resolve);
+          readStream.pipe(writeStream);
+        });
+        await fs.promises.rename(temp, destination);
+        if (!event.sender.isDestroyed()) event.sender.send('offline-map-upload-progress', { fileName: destinationName, copiedBytes: totalBytes, totalBytes, percent: 100, speedBytesPerSecond: totalBytes / Math.max((Date.now() - startedAt) / 1000, 0.001), status: 'complete' });
+        installed.push(destinationName);
+      } catch (error) {
+        try { if (fs.existsSync(temp)) await fs.promises.unlink(temp); } catch {}
+        if (!event.sender.isDestroyed()) event.sender.send('offline-map-upload-progress', { fileName: destinationName, copiedBytes, totalBytes, percent: totalBytes > 0 ? copiedBytes / totalBytes * 100 : 0, speedBytesPerSecond: 0, status: 'failed', error: error?.message || String(error) });
+        skipped.push(source);
+      }
     }
     return { installed, skipped, info: scanAssets() };
   });
@@ -202,39 +231,20 @@ function startPMTilesServer() {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Cache-Control', 'no-store');
-      if (req.method === 'HEAD') {
-        res.setHeader('Content-Length', String(stat.size));
-        res.writeHead(200);
-        return res.end();
-      }
+      if (req.method === 'HEAD') { res.setHeader('Content-Length', String(stat.size)); res.writeHead(200); return res.end(); }
       const range = req.headers.range;
-      if (!range) {
-        res.setHeader('Content-Length', String(stat.size));
-        res.writeHead(200);
-        return fs.createReadStream(file).pipe(res);
-      }
+      if (!range) { res.setHeader('Content-Length', String(stat.size)); res.writeHead(200); return fs.createReadStream(file).pipe(res); }
       const match = /^bytes=(\d+)-(\d*)$/i.exec(range);
-      if (!match) {
-        res.setHeader('Content-Range', `bytes */${stat.size}`);
-        res.writeHead(416);
-        return res.end();
-      }
+      if (!match) { res.setHeader('Content-Range', `bytes */${stat.size}`); res.writeHead(416); return res.end(); }
       const start = Number(match[1]);
       const requestedEnd = match[2] ? Number(match[2]) : stat.size - 1;
-      if (!Number.isSafeInteger(start) || start < 0 || start >= stat.size) {
-        res.setHeader('Content-Range', `bytes */${stat.size}`);
-        res.writeHead(416);
-        return res.end();
-      }
+      if (!Number.isSafeInteger(start) || start < 0 || start >= stat.size) { res.setHeader('Content-Range', `bytes */${stat.size}`); res.writeHead(416); return res.end(); }
       const end = Math.min(Number.isSafeInteger(requestedEnd) ? requestedEnd : stat.size - 1, stat.size - 1);
       res.statusCode = 206;
       res.setHeader('Content-Length', String(end - start + 1));
       res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
       fs.createReadStream(file, { start, end }).pipe(res);
-    } catch (error) {
-      res.writeHead(500);
-      res.end(String(error?.message || error));
-    }
+    } catch (error) { res.writeHead(500); res.end(String(error?.message || error)); }
   });
   server.listen(PMTILES_PORT, '127.0.0.1');
   return server;
