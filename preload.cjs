@@ -10,5 +10,10 @@ contextBridge.exposeInMainWorld('rnmsOffline', {
   installDemFolder: (folder) => ipcRenderer.invoke('offline-install-dem-folder', folder),
   removeMapAsset: (name) => ipcRenderer.invoke('offline-remove-map-asset', name),
   validateAssets: () => ipcRenderer.invoke('offline-validate-assets'),
-  readPMTilesRange: (fileName, start, length) => ipcRenderer.invoke('offline-read-pmtiles-range', fileName, start, length)
+  readPMTilesRange: (fileName, start, length) => ipcRenderer.invoke('offline-read-pmtiles-range', fileName, start, length),
+  onMapUploadProgress: (callback) => {
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on('offline-map-upload-progress', listener);
+    return () => ipcRenderer.removeListener('offline-map-upload-progress', listener);
+  }
 });
