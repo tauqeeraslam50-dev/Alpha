@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld('rnmsOffline', {
   installMapFiles: (files) => ipcRenderer.invoke('offline-install-map-files', files),
   installDemFolder: (folder) => ipcRenderer.invoke('offline-install-dem-folder', folder),
   removeMapAsset: (name) => ipcRenderer.invoke('offline-remove-map-asset', name),
-  validateAssets: () => ipcRenderer.invoke('offline-validate-assets')
+  validateAssets: () => ipcRenderer.invoke('offline-validate-assets'),
+  readPMTilesRange: (fileName, start, length) => ipcRenderer.invoke('offline-read-pmtiles-range', fileName, start, length)
 });
