@@ -7,9 +7,12 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'rnms', privileges: { standard: 
 let mainWindow = null;
 
 function getAssetRoots() {
-  const externalRoot = path.join(path.dirname(process.execPath), 'rnms-data');
-  const bundledRoot = app.isPackaged ? path.join(process.resourcesPath, 'rnms-data') : path.join(__dirname, 'rnms-data');
-  const root = fs.existsSync(externalRoot) ? externalRoot : bundledRoot;
+  const candidates = [
+    path.join(path.dirname(process.execPath), 'rnms-data'),
+    app.isPackaged ? path.join(process.resourcesPath, 'rnms-data') : path.join(__dirname, 'rnms-data'),
+    path.join(app.getPath('userData'), 'rnms-data')
+  ];
+  const root = candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
   fs.mkdirSync(path.join(root, 'maps'), { recursive: true });
   fs.mkdirSync(path.join(root, 'dem'), { recursive: true });
   return { root, maps: path.join(root, 'maps'), dem: path.join(root, 'dem') };
@@ -150,10 +153,7 @@ function registerOfflineGIS() {
     for (const name of files) {
       const source = path.join(folder, name);
       const destination = path.join(roots.dem, name.toUpperCase());
-      try {
-        await copyFileAtomic(source, destination);
-        installed++;
-      } catch { skipped++; }
+      try { await copyFileAtomic(source, destination); installed++; } catch { skipped++; }
     }
     return { installed, skipped, info: scanAssets() };
   });
