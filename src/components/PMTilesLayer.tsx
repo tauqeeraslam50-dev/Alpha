@@ -19,26 +19,31 @@ function mimeForTileType(tileType: unknown) {
   return 'image/jpeg';
 }
 
-function normalizePMTilesUrl(url: string) {
+async function normalizePMTilesUrl(url: string) {
   if (!url) return '';
-  if (url.startsWith('rnms://pmtiles/')) return url;
 
+  let fileName = '';
   try {
     const parsed = new URL(url);
-    const fileName = decodeURIComponent(parsed.pathname.split('/').pop() || '');
-    if (fileName.toLowerCase().endsWith('.pmtiles')) {
-      return `rnms://pmtiles/${encodeURIComponent(fileName)}`;
-    }
+    fileName = decodeURIComponent(parsed.pathname.split('/').pop() || '');
   } catch {
-    // Continue with plain/local path handling.
+    fileName = url.split(/[\\/]/).pop() || '';
   }
 
-  const fileName = url.split(/[\\/]/).pop() || '';
-  if (fileName.toLowerCase().endsWith('.pmtiles')) {
-    return `rnms://pmtiles/${encodeURIComponent(fileName)}`;
+  if (!fileName.toLowerCase().endsWith('.pmtiles')) return url;
+
+  // Prefer the local HTTP range server. PMTiles relies on HTTP Range requests,
+  // and this avoids browser/Electron custom-protocol fetch inconsistencies.
+  try {
+    const info = await window.rnmsOffline?.getMapInfo?.();
+    const baseUrl = String(info?.pmtilesBaseUrl || '').replace(/\/$/, '');
+    if (baseUrl) return `${baseUrl}/${encodeURIComponent(fileName)}`;
+  } catch (error) {
+    console.warn('[RNMS] Could not resolve local PMTiles HTTP server:', error);
   }
 
-  return url;
+  // Fallback for development builds where the HTTP server is unavailable.
+  return `rnms://pmtiles/${encodeURIComponent(fileName)}`;
 }
 
 export function PMTilesLayer({
@@ -51,73 +56,82 @@ export function PMTilesLayer({
   const map = useMap();
 
   useEffect(() => {
-    const sourceUrl = normalizePMTilesUrl(url);
-    if (!sourceUrl) return;
-
-    console.log('[RNMS] Loading offline PMTiles:', sourceUrl);
-
-    const archive = new PMTiles(sourceUrl);
+    let cancelled = false;
+    let layer: L.GridLayer | null = null;
     const objectUrls = new Set<string>();
-    let mimeType = 'image/jpeg';
 
-    class OfflinePMTilesGrid extends L.GridLayer {
-      createTile(coords: L.Coords, done: L.DoneCallback) {
-        const tile = document.createElement('img');
-        tile.alt = '';
-        tile.setAttribute('role', 'presentation');
-        tile.width = 256;
-        tile.height = 256;
+    const load = async () => {
+      const sourceUrl = await normalizePMTilesUrl(url);
+      if (!sourceUrl || cancelled) return;
 
-        archive.getTile(coords.z, coords.x, coords.y)
-          .then((result) => {
-            if (!result?.data) {
-              done(new Error(`No offline tile at z=${coords.z} x=${coords.x} y=${coords.y}`), tile);
-              return;
-            }
+      console.log('[RNMS] Loading offline PMTiles:', sourceUrl);
 
-            const blob = new Blob([result.data], { type: mimeType });
-            const objectUrl = URL.createObjectURL(blob);
-            objectUrls.add(objectUrl);
-            tile.onload = () => done(undefined, tile);
-            tile.onerror = () => done(new Error('Offline PMTiles tile image failed to decode'), tile);
-            tile.src = objectUrl;
-          })
-          .catch((error) => {
-            console.error('[RNMS] PMTiles tile error:', error);
-            done(error instanceof Error ? error : new Error(String(error)), tile);
-          });
+      const archive = new PMTiles(sourceUrl);
+      let mimeType = 'image/jpeg';
 
-        return tile;
+      class OfflinePMTilesGrid extends L.GridLayer {
+        createTile(coords: L.Coords, done: L.DoneCallback) {
+          const tile = document.createElement('img');
+          tile.alt = '';
+          tile.setAttribute('role', 'presentation');
+          tile.width = 256;
+          tile.height = 256;
+
+          archive.getTile(coords.z, coords.x, coords.y)
+            .then((result) => {
+              if (!result?.data) {
+                done(new Error(`No offline tile at z=${coords.z} x=${coords.x} y=${coords.y}`), tile);
+                return;
+              }
+
+              const blob = new Blob([result.data], { type: mimeType });
+              const objectUrl = URL.createObjectURL(blob);
+              objectUrls.add(objectUrl);
+              tile.onload = () => done(undefined, tile);
+              tile.onerror = () => done(new Error('Offline PMTiles tile image failed to decode'), tile);
+              tile.src = objectUrl;
+            })
+            .catch((error) => {
+              console.error('[RNMS] PMTiles tile error:', error);
+              done(error instanceof Error ? error : new Error(String(error)), tile);
+            });
+
+          return tile;
+        }
       }
-    }
 
-    const layer = new OfflinePMTilesGrid({
-      tileSize: 256,
-      minZoom,
-      maxZoom,
-      opacity,
-      attribution,
-      updateWhenIdle: true,
-      keepBuffer: 2,
-    });
-
-    archive.getHeader()
-      .then((header: any) => {
-        mimeType = mimeForTileType(header.tileType);
-        console.log('[RNMS] PMTiles header loaded:', {
-          tileType: header.tileType,
-          minZoom: header.minZoom,
-          maxZoom: header.maxZoom,
-          bounds: header.bounds,
-        });
-        layer.addTo(map);
-      })
-      .catch((error: any) => {
-        console.error('[RNMS] PMTiles header failed:', error);
+      layer = new OfflinePMTilesGrid({
+        tileSize: 256,
+        minZoom,
+        maxZoom,
+        opacity,
+        attribution,
+        updateWhenIdle: true,
+        keepBuffer: 2,
       });
 
+      archive.getHeader()
+        .then((header: any) => {
+          if (cancelled) return;
+          mimeType = mimeForTileType(header.tileType);
+          console.log('[RNMS] PMTiles header loaded:', {
+            tileType: header.tileType,
+            minZoom: header.minZoom,
+            maxZoom: header.maxZoom,
+            bounds: header.bounds,
+          });
+          layer?.addTo(map);
+        })
+        .catch((error: any) => {
+          console.error('[RNMS] PMTiles header failed:', error);
+        });
+    };
+
+    void load();
+
     return () => {
-      if (map.hasLayer(layer)) map.removeLayer(layer);
+      cancelled = true;
+      if (layer && map.hasLayer(layer)) map.removeLayer(layer);
       for (const objectUrl of objectUrls) URL.revokeObjectURL(objectUrl);
       objectUrls.clear();
     };
