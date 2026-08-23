@@ -21,9 +21,13 @@
     "appId": "com.rfnetwork.rnms",
     "productName": "Radio Network Management System",
     "copyright": "Copyright © 2026 Tauqeer Aslam",
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release"
+    },
     "files": ["dist/**/*", "electron-main.cjs", "electron-entry.cjs", "package.json"],
-    "win": { "target": ["nsis", "portable"] },
+    "win": {
+      "target": ["nsis", "portable"]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -34,15 +38,18 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/leaflet": "^1.9.22",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-leaflet": "^5.0.0",
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.6.0",
     "vite": "^6.2.3"

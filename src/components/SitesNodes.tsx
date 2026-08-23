@@ -3,48 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAppContext } from '../context/AppContext';
 import { MapPin, Plus, Search, Filter, Trash2, Edit, Activity, AlertTriangle } from 'lucide-react';
 import { Site } from '../types';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import { searchOfflineLocations } from '../lib/offlineGeo';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
-// Fix for default marker icons in Leaflet with Vite
-import iconUrl from 'leaflet/dist/images/marker-icon.png';
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
-
-const DefaultIcon = L.icon({
-  iconUrl,
-  iconRetinaUrl,
-  shadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Component to handle map clicks for coordinate picking
-function LocationPicker({ lat, lng, onChange }: { lat: number, lng: number, onChange: (lat: number, lng: number) => void }) {
-  const map = useMap();
-  
-  useMapEvents({
-    click(e) {
-      onChange(e.latlng.lat, e.latlng.lng);
-    },
-  });
-
-  return <Marker position={[lat, lng]} />;
-}
-
-// Component to fly to searched location
-function MapFlyTo({ position }: { position: [number, number] | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (position) {
-      map.flyTo(position, 13, { duration: 1.5 });
-    }
-  }, [position, map]);
-  return null;
-}
 
 export function SitesNodes() {
   const { sites, addSite, removeSite, updateSite, clearAllSites, setCurrentView } = useAppContext();
@@ -504,82 +463,13 @@ export function SitesNodes() {
                 </div>
               </form>
 
-              {/* Map Side */}
-              <div className="w-1/2 bg-slate-100 relative">
-                
-                {/* Search Bar Overlay */}
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur border border-slate-200 rounded-lg z-[1000] shadow-md w-80">
-                  <form onSubmit={handleModalSearch} className="flex items-center p-1">
-                    <input 
-                      type="text" 
-                      placeholder="Search city, location, or coords..." 
-                      value={modalSearchQuery}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setModalSearchQuery(val);
-                        if (val.trim().length >= 2) {
-                          const offlineMatches = searchOfflineLocations(val);
-                          if (offlineMatches.length > 0) {
-                            setModalSearchResults(offlineMatches.map(m => ({
-                              display_name: m.displayName,
-                              lat: m.lat,
-                              lon: m.lng
-                            })));
-                            setModalShowSearchResults(true);
-                          } else {
-                            setModalShowSearchResults(false);
-                          }
-                        } else {
-                          setModalShowSearchResults(false);
-                        }
-                      }}
-                      className="w-full text-sm p-2 outline-none bg-transparent"
-                    />
-                    <button type="submit" className="p-2 text-slate-500 hover:text-blue-600 transition" disabled={modalIsSearching}>
-                      {modalIsSearching ? <Activity className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                    </button>
-                  </form>
-                  
-                  {/* Search Results Dropdown */}
-                  {modalShowSearchResults && modalSearchResults.length > 0 && (
-                    <div className="border-t border-slate-100 max-h-64 overflow-y-auto">
-                      {modalSearchResults.map((result, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleSelectModalSearchResult(result)}
-                          className="w-full text-left px-4 py-2 text-xs hover:bg-slate-50 border-b border-slate-50 last:border-0 truncate flex items-start"
-                        >
-                          <MapPin className="w-3 h-3 mr-2 mt-0.5 text-slate-400 flex-shrink-0" />
-                          <span className="text-slate-700">{result.display_name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {modalShowSearchResults && modalSearchResults.length === 0 && !modalIsSearching && (
-                    <div className="border-t border-slate-100 p-3 text-xs text-slate-500 text-center">
-                      No locations found
-                    </div>
-                  )}
+              {/* Map Side Removed */}
+              <div className="w-1/2 bg-slate-50 flex items-center justify-center p-6 text-center border-l border-slate-200">
+                <div>
+                  <MapPin className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                  <h4 className="text-slate-600 font-semibold mb-2">GIS Map Disabled</h4>
+                  <p className="text-slate-500 text-sm">Map visualization has been moved to the standalone Offline Map Manager.</p>
                 </div>
-
-                <MapContainer 
-                  center={[formData.lat || 33.6844, formData.lng || 73.0479]} 
-                  zoom={12} 
-                  className="w-full h-full absolute inset-0 z-0"
-                >
-                  <TileLayer
-                    attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    maxZoom={19}
-                  />
-                  <LocationPicker 
-                    lat={formData.lat || 33.6844} 
-                    lng={formData.lng || 73.0479} 
-                    onChange={(lat, lng) => setFormData(prev => ({ ...prev, lat, lng }))} 
-                  />
-                  <MapFlyTo position={searchedPosition} />
-                </MapContainer>
               </div>
             </div>
           </div>
