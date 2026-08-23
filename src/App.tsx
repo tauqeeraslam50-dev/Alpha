@@ -7,11 +7,9 @@ import React from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Sidebar, Header, StatusBar } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
-import { GISMap } from './components/GISMap';
-import { OfflineGISMap } from './components/OfflineGISMap';
+import { OfflineGISMapV2 } from './components/OfflineGISMapV2';
 import { SitesNodes } from './components/SitesNodes';
 import { RFLinkBudget } from './components/RFLinkBudget';
-import { LineOfSightAnalysis } from './components/LineOfSightAnalysis';
 import { RealLOSProfiler } from './components/RealLOSProfiler';
 import { EquipmentDB } from './components/EquipmentDB';
 import { Simulation } from './components/Simulation';
@@ -27,7 +25,7 @@ function MainContent() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
-      case 'gis-map': return <OfflineGISMap />;
+      case 'gis-map': return <OfflineGISMapV2 />;
       case 'sites': return <SitesNodes />;
       case 'equipment': return <EquipmentDB />;
       case 'rf-links': return <RFLinkBudget />;
