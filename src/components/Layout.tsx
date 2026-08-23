@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { View } from '../types';
 import { cn } from '../lib/utils';
-import { LayoutDashboard, MapPin, Radio, Activity, Wifi, Zap, Share2, Mountain, FileText, Database, Cpu, Download, Upload, Sun, Moon, Info, Eye } from 'lucide-react';
+import { LayoutDashboard, Map, MapPin, Radio, Activity, Wifi, Zap, Share2, Mountain, FileText, Database, Cpu, Download, Upload, Sun, Moon, Info, Eye } from 'lucide-react';
 
 interface SidebarItemProps { view: View; icon: React.ElementType; label: string; }
 
@@ -16,9 +16,10 @@ export function Sidebar() {
     </button>;
   };
   return <nav className={cn("w-64 flex flex-col flex-shrink-0 h-full relative z-20 border-r transition-colors duration-200", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800")}>
-    <div className="p-3.5 space-y-0.5 overflow-y-auto flex-1">
+    <div className={cn("p-3.5 space-y-0.5 overflow-y-auto flex-1", theme === 'light' ? 'scrollbar-thin' : '')}>
       <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
-      <div className={cn("px-3 text-[10px] font-bold uppercase tracking-wider mb-1.5 mt-5", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Network Design</div>
+      <div className={cn("px-3 text-[10px] font-bold uppercase tracking-wider mb-1.5 mt-5", theme === 'light' ? "text-slate-400" : "text-slate-500")}>GIS & Network Design</div>
+      <NavItem view="map" icon={Map} label="Maps" />
       <NavItem view="sites" icon={MapPin} label="Sites & Nodes" />
       <NavItem view="equipment" icon={Cpu} label="Equipment & Radios" />
       <NavItem view="rf-links" icon={Radio} label="RF Link Budget" />
@@ -54,14 +55,15 @@ export function Header() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { const content = event.target?.result as string; if (content) importBackup(content); }; reader.readAsText(file); e.target.value = ''; };
   return <header className={cn("h-14 border-b px-5 flex items-center justify-between flex-shrink-0 transition-colors duration-200 z-30 shadow-xs", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800")}>
-    <div className="flex items-center gap-3.5"><img src="/Pakistan_Inter_Services_(Emblem).png" alt="Logo" className="w-8 h-8 object-contain drop-shadow-sm" /><div><div className="flex items-center gap-2"><h1 className={cn("text-sm sm:text-base font-bold tracking-tight whitespace-nowrap", theme === 'light' ? "text-slate-800" : "text-white")}>Radio Network Management System</h1><span className="hidden sm:inline-block px-1.5 py-0.2 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold rounded">v1.0</span></div><p className="text-[10px] text-slate-400 leading-none mt-0.5 hidden sm:block">Develop by <strong className="text-slate-600 dark:text-slate-300 font-semibold">Tauqeer Aslam</strong></p></div></div>
+    <div className="flex items-center gap-3.5"><img src="/Pakistan_Inter_Services_(Emblem).png" alt="Logo" className="w-8 h-8 object-contain drop-shadow-sm" /><div><div className="flex items-center gap-2"><h1 className={cn("text-sm sm:text-base font-bold tracking-tight whitespace-nowrap", theme === 'light' ? "text-slate-800" : "text-white")}>Radio Network Management System</h1><span className="hidden sm:inline-block px-1.5 py-0.2 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold rounded">v1.1 GIS</span></div><p className="text-[10px] text-slate-400 leading-none mt-0.5 hidden sm:block">Develop by <strong className="text-slate-600 dark:text-slate-300 font-semibold">Tauqeer Aslam</strong></p></div></div>
     <div className="flex items-center gap-2 sm:gap-3"><div className={cn("hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md border text-xs font-semibold", theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-700" : "bg-slate-800 border-slate-700 text-slate-300")}><span className="text-[10px] font-bold text-slate-400 uppercase">PROJECT:</span><span className="font-mono text-blue-600 dark:text-blue-400">Region-7_VHF_Expansion</span></div>
+      <button onClick={() => setCurrentView('map')} className={cn("p-1.5 rounded-lg border transition-colors", theme === 'light' ? "bg-slate-50 hover:bg-blue-50 border-slate-200 text-slate-700" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300")} title="Open GIS Map"><Map className="w-4 h-4 text-blue-600" /></button>
       <button onClick={toggleTheme} className={cn("p-1.5 rounded-lg border transition-colors", theme === 'light' ? "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-400")} title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Theme`}>{theme === 'light' ? <Moon className="w-4 h-4 text-slate-700" /> : <Sun className="w-4 h-4 text-amber-400" />}</button>
       <button onClick={exportBackup} className={cn("px-3 py-1.5 border text-xs font-semibold rounded-lg transition flex items-center shadow-xs", theme === 'light' ? "bg-white hover:bg-slate-50 border-slate-200 text-slate-700" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200")}><Download className="w-3.5 h-3.5 mr-1.5 text-blue-600" /><span className="hidden sm:inline">Export Plan</span></button>
       <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
       <button onClick={() => fileInputRef.current?.click()} className={cn("px-3 py-1.5 border text-xs font-semibold rounded-lg transition flex items-center shadow-xs", theme === 'light' ? "bg-white hover:bg-slate-50 border-slate-200 text-slate-700" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200")}><Upload className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-500" /><span className="hidden sm:inline">Import Plan</span></button>
       <button onClick={() => setCurrentView('reports')} className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs transition flex items-center"><FileText className="w-3.5 h-3.5 mr-1.5" /><span className="hidden sm:inline">Reports</span></button>
-      <button onClick={() => setIsAboutModalOpen(true)} className={cn("p-1.5 rounded-lg border transition ml-0.5", theme === 'light' ? "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600 hover:text-blue-600" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-blue-400")} title="About Software Version 1.0"><Info className="w-4 h-4" /></button>
+      <button onClick={() => setIsAboutModalOpen(true)} className={cn("p-1.5 rounded-lg border transition ml-0.5", theme === 'light' ? "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600 hover:text-blue-600" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-blue-400")} title="About Software Version 1.1"><Info className="w-4 h-4" /></button>
     </div>
   </header>;
 }
@@ -70,7 +72,7 @@ export function StatusBar() {
   const { sites, links, theme, setIsAboutModalOpen } = useAppContext();
   const goodLinks = links.length; const marginalLinks = 0; const failedLinks = 0;
   return <footer className={cn("h-8 px-5 flex items-center justify-between flex-shrink-0 text-[10px] font-mono border-t z-30 transition-colors duration-200", theme === 'light' ? "bg-white border-slate-200 text-slate-600" : "bg-slate-900 border-slate-800 text-slate-400")}>
-    <div className="flex items-center gap-5"><div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.6)]"></div><span className="font-semibold text-emerald-600 uppercase tracking-tight">System v1.0 Online</span></div><div className="hidden md:flex items-center gap-4 text-slate-500"><span>Sites: <b className={theme === 'light' ? "text-slate-800" : "text-slate-200"}>{sites.length}</b></span><span>Links: <b className={theme === 'light' ? "text-slate-800" : "text-slate-200"}>{links.length}</b></span><span>Frequency: <b className={theme === 'light' ? "text-slate-800" : "text-slate-200"}>136 - 470 MHz</b></span></div></div>
+    <div className="flex items-center gap-5"><div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.6)]"></div><span className="font-semibold text-emerald-600 uppercase tracking-tight">System v1.1 GIS Online</span></div><div className="hidden md:flex items-center gap-4 text-slate-500"><span>Sites: <b className={theme === 'light' ? "text-slate-800" : "text-slate-200"}>{sites.length}</b></span><span>Links: <b className={theme === 'light' ? "text-slate-800" : "text-slate-200"}>{links.length}</b></span><span>Frequency: <b className={theme === 'light' ? "text-slate-800" : "text-slate-200"}>136 - 470 MHz</b></span></div></div>
     <div className="flex items-center gap-4"><div className="hidden sm:flex items-center gap-3 font-bold uppercase text-[9px]"><span className="text-emerald-600">{goodLinks} Valid</span><span className="text-amber-500">{marginalLinks} Marg</span><span className="text-rose-500">{failedLinks} Fail</span></div><div className="border-l border-slate-300 dark:border-slate-700 pl-3 flex items-center gap-1 text-slate-500"><span>Dev:</span><button onClick={() => setIsAboutModalOpen(true)} className="font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">Tauqeer Aslam</button></div></div>
   </footer>;
 }
