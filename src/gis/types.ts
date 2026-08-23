@@ -29,9 +29,10 @@ export interface OfflineMapMetadata {
 declare global {
   interface Window {
     rnmsOffline?: {
-      getMapInfo?: () => Promise<OfflineMapStatus & Record<string, unknown>>;
+      getMapInfo?: () => Promise<Record<string, unknown>>;
+      getFolderMapInfo?: () => Promise<OfflineMapStatus>;
       selectOfflineMapFolder?: () => Promise<string | null>;
-      installOfflineMapFolder?: (folder: string) => Promise<unknown>;
+      installOfflineMapFolder?: (folder: string) => Promise<OfflineMapStatus>;
       readMapText?: (fileName: string) => Promise<string | null>;
     };
   }
