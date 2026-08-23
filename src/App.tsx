@@ -7,7 +7,6 @@ import React from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Sidebar, Header, StatusBar } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
-import { OfflineGISMapV2 } from './components/OfflineGISMapV2';
 import { SitesNodes } from './components/SitesNodes';
 import { RFLinkBudget } from './components/RFLinkBudget';
 import { RealLOSProfiler } from './components/RealLOSProfiler';
@@ -17,7 +16,6 @@ import { Reports } from './components/Reports';
 import { CoveragePrediction } from './components/CoveragePrediction';
 import { FrequencyPlanning } from './components/FrequencyPlanning';
 import { MicrowaveBackhaul } from './components/MicrowaveBackhaul';
-import { OfflineMapManager } from './components/OfflineMapManager';
 import { AboutModal } from './components/AboutModal';
 
 function MainContent() {
@@ -25,7 +23,6 @@ function MainContent() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
-      case 'gis-map': return <OfflineGISMapV2 />;
       case 'sites': return <SitesNodes />;
       case 'equipment': return <EquipmentDB />;
       case 'rf-links': return <RFLinkBudget />;
@@ -34,11 +31,9 @@ function MainContent() {
       case 'los': return <RealLOSProfiler />;
       case 'coverage': return <CoveragePrediction />;
       case 'microwave': return <MicrowaveBackhaul />;
-      case 'offline-manager': return <OfflineMapManager />;
-      case 'gis-data-manager': return <OfflineMapManager />;
-      case 'database': return <EquipmentDB />;
       case 'simulation': return <Simulation />;
       case 'reports': return <Reports />;
+      case 'database': return <EquipmentDB />;
       default: return <div className="flex items-center justify-center h-full p-6"><div className="w-full h-full flex flex-col items-center justify-center bg-white border border-slate-300 rounded-xl shadow-sm"><div className="text-6xl mb-4 opacity-30">📡</div><h2 className="text-xl font-bold text-slate-700">Module in Development</h2><p className="mt-2 text-sm text-slate-500 font-medium">The <span className="uppercase text-blue-600 font-bold mx-1">{currentView.replace('-', ' ')}</span> module is currently being engineered.</p></div></div>;
     }
   };
