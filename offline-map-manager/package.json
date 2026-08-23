@@ -1,0 +1,40 @@
+{
+  "name": "pakistan-offline-map-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone offline map manager for Pakistan map data",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 4173",
+    "build": "vite build",
+    "electron:dev": "concurrently -k \"vite --port 4173\" \"wait-on http://127.0.0.1:4173 && electron .\"",
+    "electron:build": "npm run build && electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "@maplibre/maplibre-gl-style-spec": "^24.2.0",
+    "maplibre-gl": "^5.12.0",
+    "pmtiles": "^4.4.1",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "lucide-react": "^0.546.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "concurrently": "^9.2.1",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.tauqeeraslam.pakistanofflinemapmanager",
+    "productName": "Pakistan Offline Map Manager",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "extraResources": [{ "from": "map-data", "to": "map-data" }],
+    "win": { "target": ["nsis", "portable"] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
+  }
+}
