@@ -7,6 +7,7 @@ import React from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Sidebar, Header, StatusBar } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
+import { Map } from './components/Map';
 import { SitesNodes } from './components/SitesNodes';
 import { RFLinkBudget } from './components/RFLinkBudget';
 import { RealLOSProfiler } from './components/RealLOSProfiler';
@@ -23,6 +24,7 @@ function MainContent() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
+      case 'map': return <Map />;
       case 'sites': return <SitesNodes />;
       case 'equipment': return <EquipmentDB />;
       case 'rf-links': return <RFLinkBudget />;
