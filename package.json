@@ -22,7 +22,7 @@
     "productName": "Radio Network Management System",
     "copyright": "Copyright © 2026 Tauqeer Aslam",
     "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron-main.cjs", "electron-entry.cjs", "electron-gis.cjs", "preload.cjs", "package.json"],
+    "files": ["dist/**/*", "electron-main.cjs", "electron-entry.cjs", "preload.cjs", "package.json"],
     "extraResources": [{ "from": "rnms-data", "to": "rnms-data" }],
     "win": { "target": ["nsis", "portable"] },
     "nsis": {
