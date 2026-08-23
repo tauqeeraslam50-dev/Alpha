@@ -5,7 +5,7 @@
   "description": "Radio Network Management System - offline RF network planning and management desktop application",
   "author": "Tauqeer Aslam",
   "type": "module",
-  "main": "electron-main.cjs",
+  "main": "electron-entry.cjs",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
@@ -22,7 +22,7 @@
     "productName": "Radio Network Management System",
     "copyright": "Copyright © 2026 Tauqeer Aslam",
     "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron-main.cjs", "preload.cjs", "package.json"],
+    "files": ["dist/**/*", "electron-main.cjs", "electron-entry.cjs", "electron-gis.cjs", "preload.cjs", "package.json"],
     "extraResources": [{ "from": "rnms-data", "to": "rnms-data" }],
     "win": { "target": ["nsis", "portable"] },
     "nsis": {
@@ -61,7 +61,7 @@
     "electron": "^38.0.0",
     "electron-builder": "^26.0.12",
     "esbuild": "^0.25.0",
-    "tailwindcss": "^4.1.14",
+    "tailwindcss": "^4.1.0",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
