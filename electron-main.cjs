@@ -16,6 +16,7 @@ function getAssetRoots() {
   ];
   const root = candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
   fs.mkdirSync(path.join(root, 'maps'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'maps', 'tiles'), { recursive: true });
   fs.mkdirSync(path.join(root, 'dem'), { recursive: true });
   return { root, maps: path.join(root, 'maps'), dem: path.join(root, 'dem') };
 }
@@ -31,6 +32,13 @@ function fileInfo(file) {
   const stat = fs.statSync(file);
   return { sizeBytes: stat.size, modified: stat.mtime.toISOString() };
 }
+function hasFilesRecursive(root) {
+  try {
+    if (!fs.existsSync(root)) return false;
+    const entries = fs.readdirSync(root, { withFileTypes: true });
+    return entries.some(entry => entry.isFile() || (entry.isDirectory() && hasFilesRecursive(path.join(root, entry.name))));
+  } catch { return false; }
+}
 function scanAssets() {
   const roots = getAssetRoots();
   const demTiles = fs.readdirSync(roots.dem).filter(isHgt).sort((a, b) => a.localeCompare(b));
@@ -38,19 +46,33 @@ function scanAssets() {
   const terrain = path.join(roots.maps, 'pakistan-terrain.pmtiles');
   const satelliteInfo = fileInfo(satellite);
   const terrainInfo = fileInfo(terrain);
+  const tilesRoot = path.join(roots.maps, 'tiles');
+  const folderSatellite = hasFilesRecursive(path.join(tilesRoot, 'satellite'));
+  const folderStreet = hasFilesRecursive(path.join(tilesRoot, 'street'));
+  const folderTerrain = hasFilesRecursive(path.join(tilesRoot, 'terrain'));
+  const labels = fileInfo(path.join(roots.maps, 'pakistan-labels.geojson'));
+  const metadata = fileInfo(path.join(roots.maps, 'metadata.json'));
   return {
     mapsRoot: roots.maps,
+    packageRoot: roots.maps,
+    tilesRoot,
     demRoot: roots.dem,
-    satelliteAvailable: Boolean(satelliteInfo),
-    terrainAvailable: Boolean(terrainInfo),
+    satelliteAvailable: Boolean(satelliteInfo || folderSatellite),
+    terrainAvailable: Boolean(terrainInfo || folderTerrain),
     satellitePMTilesAvailable: Boolean(satelliteInfo),
     terrainPMTilesAvailable: Boolean(terrainInfo),
+    folderSatelliteAvailable: folderSatellite,
+    folderStreetAvailable: folderStreet,
+    folderTerrainAvailable: folderTerrain,
+    labelsAvailable: Boolean(labels),
+    metadataAvailable: Boolean(metadata),
     satellite: satelliteInfo ? { name: 'pakistan-satellite.pmtiles', ...satelliteInfo } : null,
     terrain: terrainInfo ? { name: 'pakistan-terrain.pmtiles', ...terrainInfo } : null,
     demTileCount: demTiles.length,
     demTiles,
     demResolution: demTiles.length ? inferHgtResolution(path.join(roots.dem, demTiles[0])) : null,
-    pmtilesBaseUrl: `http://127.0.0.1:${PMTILES_PORT}/pmtiles/`
+    pmtilesBaseUrl: `http://127.0.0.1:${PMTILES_PORT}/pmtiles/`,
+    packageName: metadata ? 'Pakistan Offline Map Package' : ''
   };
 }
 function inferHgtResolution(file) {
@@ -116,9 +138,7 @@ function registerOfflineGIS() {
       const buffer = Buffer.allocUnsafe(actualLength);
       const { bytesRead } = await handle.read(buffer, 0, actualLength, start);
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + bytesRead);
-    } finally {
-      await handle.close();
-    }
+    } finally { await handle.close(); }
   });
 
   ipcMain.handle('offline-map-info', async () => scanAssets());
@@ -128,11 +148,10 @@ function registerOfflineGIS() {
     if (info.satellite && info.satellite.sizeBytes < 1024) warnings.push('Satellite PMTiles file is unusually small and may be invalid.');
     if (info.terrain && info.terrain.sizeBytes < 1024) warnings.push('Terrain PMTiles file is unusually small and may be invalid.');
     if (info.demTileCount) {
-      const invalid = info.demTiles.filter(name => {
-        try { const size = fs.statSync(path.join(info.demRoot, name)).size; const samples = Math.sqrt(size / 2); return !Number.isInteger(samples) || ![1201, 3601, 7201].includes(samples); } catch { return true; }
-      });
+      const invalid = info.demTiles.filter(name => { try { const size = fs.statSync(path.join(info.demRoot, name)).size; const samples = Math.sqrt(size / 2); return !Number.isInteger(samples) || ![1201, 3601, 7201].includes(samples); } catch { return true; } });
       if (invalid.length) warnings.push(`${invalid.length} HGT file(s) have unsupported dimensions.`);
     }
+    if (!info.satelliteAvailable && !info.terrainAvailable && !info.folderStreetAvailable) warnings.push('No offline map imagery/road layer is installed.');
     return { valid: warnings.length === 0, warnings, ...info };
   });
   ipcMain.handle('offline-dem-list', async () => scanAssets().demTiles);
@@ -171,49 +190,27 @@ function registerOfflineGIS() {
       const startedAt = Date.now();
       try {
         await new Promise((resolve, reject) => {
-          const readStream = fs.createReadStream(source);
-          const writeStream = fs.createWriteStream(temp);
-          readStream.on('data', chunk => {
-            copiedBytes += chunk.length;
-            const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.001);
-            const speedBytesPerSecond = copiedBytes / elapsedSeconds;
-            const percent = totalBytes > 0 ? Math.min(100, copiedBytes / totalBytes * 100) : 0;
-            if (!event.sender.isDestroyed()) event.sender.send('offline-map-upload-progress', { fileName: destinationName, copiedBytes, totalBytes, percent, speedBytesPerSecond, status: 'uploading' });
-          });
-          readStream.on('error', reject);
-          writeStream.on('error', reject);
-          writeStream.on('finish', resolve);
-          readStream.pipe(writeStream);
+          const readStream = fs.createReadStream(source); const writeStream = fs.createWriteStream(temp);
+          readStream.on('data', chunk => { copiedBytes += chunk.length; const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.001); if (!event.sender.isDestroyed()) event.sender.send('offline-map-upload-progress', { fileName: destinationName, copiedBytes, totalBytes, percent: totalBytes > 0 ? Math.min(100, copiedBytes / totalBytes * 100) : 0, speedBytesPerSecond: copiedBytes / elapsedSeconds, status: 'uploading' }); });
+          readStream.on('error', reject); writeStream.on('error', reject); writeStream.on('finish', resolve); readStream.pipe(writeStream);
         });
         await fs.promises.rename(temp, destination);
         if (!event.sender.isDestroyed()) event.sender.send('offline-map-upload-progress', { fileName: destinationName, copiedBytes: totalBytes, totalBytes, percent: 100, speedBytesPerSecond: totalBytes / Math.max((Date.now() - startedAt) / 1000, 0.001), status: 'complete' });
         installed.push(destinationName);
-      } catch (error) {
-        try { if (fs.existsSync(temp)) await fs.promises.unlink(temp); } catch {}
-        if (!event.sender.isDestroyed()) event.sender.send('offline-map-upload-progress', { fileName: destinationName, copiedBytes, totalBytes, percent: totalBytes > 0 ? copiedBytes / totalBytes * 100 : 0, speedBytesPerSecond: 0, status: 'failed', error: error?.message || String(error) });
-        skipped.push(source);
-      }
+      } catch (error) { try { if (fs.existsSync(temp)) await fs.promises.unlink(temp); } catch {} skipped.push(source); }
     }
     return { installed, skipped, info: scanAssets() };
   });
   ipcMain.handle('offline-install-dem-folder', async (_event, folder) => {
     const roots = getAssetRoots();
     if (typeof folder !== 'string' || !fs.existsSync(folder)) return { installed: 0, skipped: 0, info: scanAssets() };
-    const files = fs.readdirSync(folder).filter(isHgt);
-    let installed = 0, skipped = 0;
-    for (const name of files) {
-      const source = path.join(folder, name);
-      const destination = path.join(roots.dem, name.toUpperCase());
-      try { await copyFileAtomic(source, destination); installed++; } catch { skipped++; }
-    }
+    const files = fs.readdirSync(folder).filter(isHgt); let installed = 0, skipped = 0;
+    for (const name of files) { const source = path.join(folder, name); const destination = path.join(roots.dem, name.toUpperCase()); try { await copyFileAtomic(source, destination); installed++; } catch { skipped++; } }
     return { installed, skipped, info: scanAssets() };
   });
   ipcMain.handle('offline-remove-map-asset', async (_event, name) => {
     if (name !== 'pakistan-satellite.pmtiles' && name !== 'pakistan-terrain.pmtiles') return false;
-    const file = safeChild(getAssetRoots().maps, name);
-    if (!file || !fs.existsSync(file)) return false;
-    await fs.promises.unlink(file);
-    return true;
+    const file = safeChild(getAssetRoots().maps, name); if (!file || !fs.existsSync(file)) return false; await fs.promises.unlink(file); return true;
   });
 }
 
@@ -226,40 +223,28 @@ function startPMTilesServer() {
       if (!isPmtiles(archive)) { res.writeHead(400); return res.end('Bad PMTiles request'); }
       const file = safeChild(getAssetRoots().maps, archive);
       if (!file || !fs.existsSync(file)) { res.writeHead(404); return res.end('PMTiles archive not installed'); }
-      const stat = fs.statSync(file);
-      res.setHeader('Content-Type', 'application/vnd.pmtiles');
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Cache-Control', 'no-store');
+      const stat = fs.statSync(file); res.setHeader('Content-Type', 'application/vnd.pmtiles'); res.setHeader('Accept-Ranges', 'bytes'); res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Cache-Control', 'no-store');
       if (req.method === 'HEAD') { res.setHeader('Content-Length', String(stat.size)); res.writeHead(200); return res.end(); }
       const range = req.headers.range;
       if (!range) { res.setHeader('Content-Length', String(stat.size)); res.writeHead(200); return fs.createReadStream(file).pipe(res); }
-      const match = /^bytes=(\d+)-(\d*)$/i.exec(range);
-      if (!match) { res.setHeader('Content-Range', `bytes */${stat.size}`); res.writeHead(416); return res.end(); }
-      const start = Number(match[1]);
-      const requestedEnd = match[2] ? Number(match[2]) : stat.size - 1;
+      const match = /^bytes=(\d+)-(\d*)$/i.exec(range); if (!match) { res.setHeader('Content-Range', `bytes */${stat.size}`); res.writeHead(416); return res.end(); }
+      const start = Number(match[1]); const requestedEnd = match[2] ? Number(match[2]) : stat.size - 1;
       if (!Number.isSafeInteger(start) || start < 0 || start >= stat.size) { res.setHeader('Content-Range', `bytes */${stat.size}`); res.writeHead(416); return res.end(); }
-      const end = Math.min(Number.isSafeInteger(requestedEnd) ? requestedEnd : stat.size - 1, stat.size - 1);
-      res.statusCode = 206;
-      res.setHeader('Content-Length', String(end - start + 1));
-      res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
-      fs.createReadStream(file, { start, end }).pipe(res);
+      const end = Math.min(Number.isSafeInteger(requestedEnd) ? requestedEnd : stat.size - 1, stat.size - 1); res.statusCode = 206; res.setHeader('Content-Length', String(end - start + 1)); res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`); fs.createReadStream(file, { start, end }).pipe(res);
     } catch (error) { res.writeHead(500); res.end(String(error?.message || error)); }
   });
-  server.listen(PMTILES_PORT, '127.0.0.1');
-  return server;
+  server.listen(PMTILES_PORT, '127.0.0.1'); return server;
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({ width: 1400, height: 900, minWidth: 1024, minHeight: 700, title: 'Radio Network Management System v1.0 - Offline GIS', backgroundColor: '#0f172a', backgroundThrottling: false, autoHideMenuBar: false, webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, 'preload.cjs'), webSecurity: true, allowRunningInsecureContent: false } });
-  const distPath = path.join(__dirname, 'dist', 'index.html');
-  const rootPath = path.join(__dirname, 'index.html');
+  const distPath = path.join(__dirname, 'dist', 'index.html'); const rootPath = path.join(__dirname, 'index.html');
   if (fs.existsSync(distPath)) mainWindow.loadFile(distPath); else if (fs.existsSync(rootPath)) mainWindow.loadFile(rootPath); else mainWindow.loadURL('http://localhost:3000');
   const template = [
     { label: 'File', submenu: [{ label: 'Reload Workspace', accelerator: 'CmdOrCtrl+R', click: () => mainWindow.reload() }, { type: 'separator' }, { label: 'Exit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() }] },
     { label: 'View', submenu: [{ role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' }, { label: 'Toggle Developer Tools', accelerator: 'CmdOrCtrl+Shift+I', click: () => mainWindow.webContents.toggleDevTools() }] },
-    { label: 'Offline GIS', submenu: [{ label: 'Real Pakistan Satellite PMTiles + SRTM/HGT DEM', enabled: false }] },
-    { label: 'Help', submenu: [{ label: 'About RNMS v1.0', click: () => require('electron').dialog.showMessageBox(mainWindow, { type: 'info', title: 'Radio Network Management System v1.0', message: 'Radio Network Management System (RNMS) v1.0\nDeveloped by Tauqeer Aslam\n\nOffline GIS: PMTiles + real SRTM/HGT DEM.' }) }] }
+    { label: 'Offline GIS', submenu: [{ label: 'Offline Map Package + HGT DEM', enabled: false }] },
+    { label: 'Help', submenu: [{ label: 'About RNMS v1.0', click: () => require('electron').dialog.showMessageBox(mainWindow, { type: 'info', title: 'Radio Network Management System v1.0', message: 'Radio Network Management System (RNMS) v1.0\nDeveloped by Tauqeer Aslam\n\nOffline GIS: local map package + real SRTM/HGT DEM.' }) }] }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   mainWindow.webContents.setWindowOpenHandler(({ url }) => { if (url.startsWith('http:') || url.startsWith('https:')) { shell.openExternal(url); return { action: 'deny' }; } return { action: 'allow' }; });
