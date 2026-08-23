@@ -1,5 +1,6 @@
 export type View =
   | 'dashboard'
+  | 'map'
   | 'sites'
   | 'equipment'
   | 'rf-links'
