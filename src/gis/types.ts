@@ -9,6 +9,13 @@ export interface OfflineMapStatus {
   street: boolean;
   labels: boolean;
   metadata: boolean;
+  satellitePMTilesAvailable?: boolean;
+  terrainPMTilesAvailable?: boolean;
+  folderSatelliteAvailable?: boolean;
+  folderStreetAvailable?: boolean;
+  folderTerrainAvailable?: boolean;
+  labelsAvailable?: boolean;
+  metadataAvailable?: boolean;
   demTileCount: number;
   demTiles: string[];
   packageName: string;
@@ -29,11 +36,15 @@ export interface OfflineMapMetadata {
 declare global {
   interface Window {
     rnmsOffline?: {
-      getMapInfo?: () => Promise<Record<string, unknown>>;
-      getFolderMapInfo?: () => Promise<OfflineMapStatus>;
+      getMapInfo?: () => Promise<OfflineMapStatus & Record<string, unknown>>;
+      getFolderMapInfo?: () => Promise<OfflineMapStatus & Record<string, unknown>>;
       selectOfflineMapFolder?: () => Promise<string | null>;
-      installOfflineMapFolder?: (folder: string) => Promise<OfflineMapStatus>;
+      installOfflineMapFolder?: (folder: string) => Promise<unknown>;
       readMapText?: (fileName: string) => Promise<string | null>;
+      selectMapFiles?: () => Promise<string[]>;
+      installMapFiles?: (files: string[]) => Promise<unknown>;
+      selectDemFolder?: () => Promise<string | null>;
+      installDemFolder?: (folder: string) => Promise<unknown>;
     };
   }
 }
