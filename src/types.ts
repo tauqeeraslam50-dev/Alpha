@@ -1,6 +1,5 @@
 export type View =
   | 'dashboard'
-  | 'gis-map'
   | 'sites'
   | 'equipment'
   | 'rf-links'
@@ -10,8 +9,6 @@ export type View =
   | 'simulation'
   | 'terrain'
   | 'los'
-  | 'offline-manager'
-  | 'gis-data-manager'
   | 'reports'
   | 'database';
 

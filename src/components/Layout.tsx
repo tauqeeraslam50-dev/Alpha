@@ -2,11 +2,7 @@ import React, { useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { View } from '../types';
 import { cn } from '../lib/utils';
-import {
-  LayoutDashboard, Map as MapIcon, MapPin, Radio, Activity,
-  Wifi, Zap, Share2, Mountain, FileText, Database, Cpu,
-  Download, Upload, Sun, Moon, Info, Eye, FolderOpen
-} from 'lucide-react';
+import { LayoutDashboard, MapPin, Radio, Activity, Wifi, Zap, Share2, Mountain, FileText, Database, Cpu, Download, Upload, Sun, Moon, Info, Eye } from 'lucide-react';
 
 interface SidebarItemProps { view: View; icon: React.ElementType; label: string; }
 
@@ -22,7 +18,6 @@ export function Sidebar() {
   return <nav className={cn("w-64 flex flex-col flex-shrink-0 h-full relative z-20 border-r transition-colors duration-200", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800")}>
     <div className="p-3.5 space-y-0.5 overflow-y-auto flex-1">
       <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
-      <NavItem view="gis-map" icon={MapIcon} label="Map" />
       <div className={cn("px-3 text-[10px] font-bold uppercase tracking-wider mb-1.5 mt-5", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Network Design</div>
       <NavItem view="sites" icon={MapPin} label="Sites & Nodes" />
       <NavItem view="equipment" icon={Cpu} label="Equipment & Radios" />
@@ -34,9 +29,7 @@ export function Sidebar() {
       <NavItem view="microwave" icon={Zap} label="Microwave Backhaul" />
       <NavItem view="simulation" icon={Share2} label="Network Simulation" />
       <NavItem view="terrain" icon={Mountain} label="Terrain Profile" />
-      <div className={cn("px-3 text-[10px] font-bold uppercase tracking-wider mb-1.5 mt-5", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Offline & GIS Data</div>
-      <NavItem view="gis-data-manager" icon={FolderOpen} label="GIS Data Manager" />
-      <NavItem view="offline-manager" icon={Download} label="Offline Operations" />
+      <div className={cn("px-3 text-[10px] font-bold uppercase tracking-wider mb-1.5 mt-5", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Engineering</div>
       <NavItem view="reports" icon={FileText} label="Reports & Export" />
       <NavItem view="database" icon={Database} label="Engineering Database" />
     </div>
