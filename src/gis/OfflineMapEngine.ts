@@ -8,7 +8,7 @@ export class OfflineMapEngine {
   private metadata: OfflineMapMetadata | null = null;
 
   async refresh(): Promise<OfflineMapStatus | null> {
-    this.status = (await window.rnmsOffline?.getMapInfo?.()) ?? null;
+    this.status = (await window.rnmsOffline?.getFolderMapInfo?.()) ?? null;
     if (this.status?.metadata) {
       const raw = await window.rnmsOffline?.readMapText?.('metadata.json');
       if (raw) {
@@ -23,17 +23,12 @@ export class OfflineMapEngine {
   getDefaultCenter(): [number, number] { return DEFAULT_CENTER; }
 
   hasLayer(layer: OfflineLayerId): boolean {
-    if (!this.status) return false;
-    return Boolean(this.status[layer]);
+    return Boolean(this.status?.[layer]);
   }
 
   tileUrl(layer: OfflineLayerId, z: number, x: number, y: number): string {
     const format = this.metadata?.tileFormat || DEFAULT_FORMAT;
     return `rnms://tiles/${layer}/${z}/${x}/${y}.${format}`;
-  }
-
-  labelsUrl(): string {
-    return 'rnms://geojson/pakistan-labels.geojson';
   }
 
   async installPackage(): Promise<boolean> {
