@@ -5,7 +5,6 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 const protocol = new Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
-
 const localUrl = (filePath: string) => `local-pmtiles://${encodeURIComponent(filePath)}`;
 const archiveUrl = (filePath: string) => `pmtiles://local-pmtiles://${encodeURIComponent(filePath)}`;
 const isRaster = (tileType: number) => [1, 2, 3, 4, 5].includes(tileType);
@@ -14,7 +13,7 @@ declare global { interface Window { rnmsOffline?: { selectMapFolder: () => Promi
 
 export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<MapLibreMap>();
+  const mapRef = useRef<MapLibreMap | undefined>(undefined);
   const [filePath, setFilePath] = useState('');
   const [files, setFiles] = useState<Array<{name:string;path:string;relative:string;size:number;extension:string}>>([]);
   const [error, setError] = useState('');
@@ -34,23 +33,17 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     if (!folder) return;
     const result = await window.rnmsOffline?.scanMapFolder(folder);
     const pmtiles = (result ?? []).filter(f => f.extension === '.pmtiles');
-    setFiles(pmtiles);
-    if (pmtiles.length) setFilePath(pmtiles[0].path);
+    setFiles(pmtiles); if (pmtiles.length) setFilePath(pmtiles[0].path);
     onStatus?.(`${pmtiles.length} offline PMTiles archive(s) found`);
   };
-
   const chooseFile = async () => { const selected = await window.rnmsOffline?.selectMapFile(); if (selected) setFilePath(selected); };
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !filePath) return;
-    let cancelled = false;
+    const map = mapRef.current; if (!map || !filePath) return; let cancelled = false;
     const load = async () => {
       setError(''); onStatus?.('Reading offline PMTiles metadata…');
       try {
-        const archive = new PMTiles(localUrl(filePath));
-        const header = await archive.getHeader();
-        if (cancelled) return;
+        const archive = new PMTiles(localUrl(filePath)); const header = await archive.getHeader(); if (cancelled) return;
         const sourceId = 'rnms-offline-pmtiles';
         for (const layer of [...map.getStyle().layers]) if (layer.id !== 'background') map.removeLayer(layer.id);
         if (map.getSource(sourceId)) map.removeSource(sourceId);
@@ -59,21 +52,15 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
           map.addSource(sourceId, { type: 'raster', url: archiveUrl(filePath), tileSize: 256 });
           map.addLayer({ id: 'rnms-offline-raster', type: 'raster', source: sourceId });
         } else {
-          const metadata: any = await archive.getMetadata();
-          map.addSource(sourceId, { type: 'vector', url: archiveUrl(filePath) });
+          const metadata: any = await archive.getMetadata(); map.addSource(sourceId, { type: 'vector', url: archiveUrl(filePath) });
           const layers = Array.isArray(metadata?.vector_layers) ? metadata.vector_layers : [];
-          layers.forEach((layer: any, i: number) => {
-            const id = String(layer.id).replace(/[^a-zA-Z0-9_-]/g, '_');
-            map.addLayer({ id: `rnms-fill-${id}`, type: 'fill', source: sourceId, 'source-layer': layer.id, paint: { 'fill-color': i % 2 ? '#c6d4df' : '#9fb4c4', 'fill-opacity': 0.35 } });
-            map.addLayer({ id: `rnms-line-${id}`, type: 'line', source: sourceId, 'source-layer': layer.id, paint: { 'line-color': '#526b7b', 'line-width': 1 } });
-          });
+          layers.forEach((layer: any, i: number) => { const id = String(layer.id).replace(/[^a-zA-Z0-9_-]/g, '_'); map.addLayer({ id: `rnms-fill-${id}`, type: 'fill', source: sourceId, 'source-layer': layer.id, paint: { 'fill-color': i % 2 ? '#c6d4df' : '#9fb4c4', 'fill-opacity': 0.35 } }); map.addLayer({ id: `rnms-line-${id}`, type: 'line', source: sourceId, 'source-layer': layer.id, paint: { 'line-color': '#526b7b', 'line-width': 1 } }); });
         }
         map.fitBounds(bounds, { padding: 50, duration: 500, maxZoom: Math.max(5, Math.min(header.maxZoom, 10)) });
         onStatus?.(`Loaded ${isRaster(header.tileType) ? 'raster' : 'vector'} PMTiles · Z${header.minZoom}–Z${header.maxZoom}`);
       } catch (e: any) { setError(e?.message || String(e)); onStatus?.('Unable to open offline PMTiles'); }
     };
-    void load();
-    return () => { cancelled = true; };
+    void load(); return () => { cancelled = true; };
   }, [filePath, onStatus]);
 
   return <div className="relative w-full h-full overflow-hidden rounded-xl">
