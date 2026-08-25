@@ -7,15 +7,18 @@ const protocol = new Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
 const localUrl = (filePath: string) => `local-pmtiles://${encodeURIComponent(filePath)}`;
 const archiveUrl = (filePath: string) => `pmtiles://local-pmtiles://${encodeURIComponent(filePath)}`;
+const tileTemplate = (folder: string) => `local-map://tile?root=${encodeURIComponent(folder)}&z={z}&x={x}&y={y}`;
 const isRaster = (tileType: number) => [1, 2, 3, 4, 5].includes(tileType);
 
-declare global { interface Window { rnmsOffline?: { selectMapFolder: () => Promise<string | null>; scanMapFolder: (folder: string) => Promise<Array<{name:string;path:string;relative:string;size:number;extension:string}>>; selectMapFile: () => Promise<string | null>; getDefaultMapFolder: () => Promise<string>; }; } }
+type OfflineFile = {name:string;path:string;relative:string;size:number;extension:string};
+declare global { interface Window { rnmsOffline?: { selectMapFolder: () => Promise<string | null>; scanMapFolder: (folder: string) => Promise<OfflineFile[]>; selectMapFile: () => Promise<string | null>; getDefaultMapFolder: () => Promise<string>; }; } }
 
 export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | undefined>(undefined);
   const [filePath, setFilePath] = useState('');
-  const [files, setFiles] = useState<Array<{name:string;path:string;relative:string;size:number;extension:string}>>([]);
+  const [mapFolder, setMapFolder] = useState('');
+  const [files, setFiles] = useState<OfflineFile[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -29,14 +32,24 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   }, [onStatus]);
 
   const chooseFolder = async () => {
-    const folder = await window.rnmsOffline?.selectMapFolder();
-    if (!folder) return;
-    const result = await window.rnmsOffline?.scanMapFolder(folder);
-    const pmtiles = (result ?? []).filter(f => f.extension === '.pmtiles');
-    setFiles(pmtiles); if (pmtiles.length) setFilePath(pmtiles[0].path);
-    onStatus?.(`${pmtiles.length} offline PMTiles archive(s) found`);
+    try {
+      const folder = await window.rnmsOffline?.selectMapFolder();
+      if (!folder) return;
+      setMapFolder(folder);
+      const result = await window.rnmsOffline?.scanMapFolder(folder);
+      const all = result ?? [];
+      const pmtiles = all.filter(f => f.extension === '.pmtiles');
+      const pngs = all.filter(f => f.extension === '.png');
+      setFiles(pmtiles);
+      if (pmtiles.length) setFilePath(pmtiles[0].path);
+      onStatus?.(`${pmtiles.length} PMTiles archive(s) • ${pngs.length.toLocaleString()} PNG tile(s) found`);
+    } catch (e: any) { setError(e?.message || String(e)); }
   };
-  const chooseFile = async () => { const selected = await window.rnmsOffline?.selectMapFile(); if (selected) setFilePath(selected); };
+
+  const chooseFile = async () => {
+    try { const selected = await window.rnmsOffline?.selectMapFile(); if (selected) setFilePath(selected); }
+    catch (e: any) { setError(e?.message || String(e)); }
+  };
 
   useEffect(() => {
     const map = mapRef.current; if (!map || !filePath) return; let cancelled = false;
@@ -63,11 +76,34 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     void load(); return () => { cancelled = true; };
   }, [filePath, onStatus]);
 
+  useEffect(() => {
+    const map = mapRef.current; if (!map || !mapFolder || filePath) return;
+    for (const layer of [...map.getStyle().layers]) if (layer.id !== 'background') map.removeLayer(layer.id);
+    const sourceId = 'rnms-offline-png';
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+    map.addSource(sourceId, { type: 'raster', tiles: [tileTemplate(mapFolder)], tileSize: 256, minzoom: 0, maxzoom: 22 });
+    map.addLayer({ id: 'rnms-offline-png', type: 'raster', source: sourceId });
+    onStatus?.('PNG tile folder ready');
+  }, [mapFolder, filePath, onStatus]);
+
+  const openPngFolder = async () => {
+    try {
+      const folder = await window.rnmsOffline?.selectMapFolder();
+      if (!folder) return;
+      setFilePath(''); setMapFolder(folder);
+      const result = await window.rnmsOffline?.scanMapFolder(folder);
+      const pngs = (result ?? []).filter(f => f.extension === '.png');
+      onStatus?.(`${pngs.length.toLocaleString()} PNG tile(s) found`);
+      if (!pngs.length) setError('No PNG tiles found in the selected folder. Expected z/x/y.png structure.');
+    } catch (e: any) { setError(e?.message || String(e)); }
+  };
+
   return <div className="relative w-full h-full overflow-hidden rounded-xl">
     <div ref={container} className="w-full h-full" />
     <div className="absolute top-3 left-3 z-20 flex gap-2 bg-white/95 p-2 rounded-lg shadow border border-slate-200">
       <button onClick={chooseFolder} className="px-3 py-1.5 text-xs font-bold rounded bg-emerald-600 text-white">Open Map Folder</button>
       <button onClick={chooseFile} className="px-3 py-1.5 text-xs font-bold rounded bg-blue-600 text-white">Open PMTiles</button>
+      <button onClick={openPngFolder} className="px-3 py-1.5 text-xs font-bold rounded bg-slate-700 text-white">Open PNG Tiles</button>
       {files.length > 1 && <select value={filePath} onChange={e => setFilePath(e.target.value)} className="text-xs border rounded px-2">{files.map(f => <option key={f.path} value={f.path}>{f.relative}</option>)}</select>}
     </div>
     {error && <div className="absolute bottom-3 left-3 right-3 z-20 bg-red-50 text-red-700 border border-red-200 rounded-lg p-2 text-xs">{error}</div>}
