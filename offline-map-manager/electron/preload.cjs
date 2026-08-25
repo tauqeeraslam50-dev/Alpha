@@ -17,5 +17,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   scanTerrainFolder: () => ipcRenderer.invoke('terrain:scan'),
   downloadTiles: (options) => ipcRenderer.invoke('download:tiles', options),
   onDownloadProgress: (callback) => ipcRenderer.on('download:progress', (_event, progress) => callback(progress)),
-  onTileServerReady: (callback) => callback(null)
+  onTileServerReady: (callback) => ipcRenderer.on('tile-server-ready', (_event, port) => callback(port))
 });
