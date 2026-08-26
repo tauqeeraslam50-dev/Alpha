@@ -3,6 +3,7 @@ import { ONLINE_MAP_LAYERS } from './mapLayers';
 import { PAKISTAN_CITIES } from '../lib/pakistanCitiesData';
 import { GeoLocation } from '../lib/offlineGeo';
 import { saveTilesToOfflineStore } from './offlineTileStore';
+import { buildPMTilesArchive, TileEntryInput } from './pmtilesWriter';
 
 export interface DownloadArea {
   name: string;
@@ -12,7 +13,8 @@ export interface DownloadArea {
   maxLng: number;
   minZoom: number;
   maxZoom: number;
-  layerIds: string[]; // e.g. ['esri-satellite', 'carto-voyager']
+  layerIds: string[]; // e.g. ['esri-satellite-hybrid', 'english-voyager']
+  exportFormat?: 'pmtiles' | 'zip';
   includePlacesData?: boolean;
   includeTerrainData?: boolean;
 }
@@ -56,20 +58,29 @@ export function calculateTileCount(area: DownloadArea): number {
   return count;
 }
 
-// Format tile URL
-function formatTileUrl(layerId: string, z: number, x: number, y: number): string {
-  const layer = ONLINE_MAP_LAYERS[layerId];
-  if (!layer) return '';
+// Get candidate tile URLs with fallback mirrors for maximum download reliability
+export function getTileUrls(layerId: string, z: number, x: number, y: number): string[] {
+  const urls: string[] = [];
+  const sub = ['a', 'b', 'c', 'd'][(x + y) % 4];
 
-  const subdomains = layer.subdomains || ['a', 'b', 'c', 'd'];
-  const s = subdomains[(x + y) % subdomains.length];
+  if (layerId.includes('satellite')) {
+    // 1. Esri World Imagery
+    urls.push(`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`);
+    // 2. Google Satellite Hybrid mirror
+    urls.push(`https://mt1.google.com/vt/lyrs=y&x=${x}&y=${y}&z=${z}`);
+    urls.push(`https://mt2.google.com/vt/lyrs=s&x=${x}&y=${y}&z=${z}`);
+  } else if (layerId.includes('topo')) {
+    // Topographic
+    urls.push(`https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${z}/${y}/${x}`);
+    urls.push(`https://${sub}.tile.opentopomap.org/${z}/${x}/${y}.png`);
+  } else {
+    // English Street / Voyager
+    urls.push(`https://${sub}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`);
+    urls.push(`https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`);
+    urls.push(`https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`);
+  }
 
-  return layer.url
-    .replace('{s}', s)
-    .replace('{z}', String(z))
-    .replace('{x}', String(x))
-    .replace('{y}', String(y))
-    .replace('{r}', '');
+  return urls;
 }
 
 /**
@@ -168,7 +179,7 @@ export async function generateTerrainGrid(area: DownloadArea): Promise<{
 
 /**
  * Downloads map tiles, places names, coordinates & terrain elevation data,
- * and packages them into a comprehensive offline ZIP bundle.
+ * and packages them into a comprehensive offline PMTiles archive or ZIP bundle.
  */
 export async function downloadOfflineMapBundle(
   area: DownloadArea,
@@ -182,6 +193,7 @@ export async function downloadOfflineMapBundle(
 }> {
   const zip = new JSZip();
   const tileBlobsMap = new Map<string, Blob>();
+  const tileEntries: TileEntryInput[] = [];
 
   const totalTiles = calculateTileCount(area);
   let completedTiles = 0;
@@ -198,13 +210,13 @@ export async function downloadOfflineMapBundle(
   });
 
   // Concurrency worker queue
-  const CONCURRENCY_LIMIT = 8;
+  const CONCURRENCY_LIMIT = 12;
   const tileQueue: Array<{
     layerId: string;
     z: number;
     x: number;
     y: number;
-    url: string;
+    candidateUrls: string[];
   }> = [];
 
   for (const layerId of area.layerIds) {
@@ -219,9 +231,9 @@ export async function downloadOfflineMapBundle(
 
       for (let x = startX; x <= endX; x++) {
         for (let y = startY; y <= endY; y++) {
-          const url = formatTileUrl(layerId, z, x, y);
-          if (url) {
-            tileQueue.push({ layerId, z, x, y, url });
+          const candidateUrls = getTileUrls(layerId, z, x, y);
+          if (candidateUrls.length > 0) {
+            tileQueue.push({ layerId, z, x, y, candidateUrls });
           }
         }
       }
@@ -235,31 +247,45 @@ export async function downloadOfflineMapBundle(
       if (signal?.aborted) throw new Error('Download cancelled by user');
 
       const item = tileQueue[queueIndex++];
-      try {
-        const response = await fetch(item.url, { signal });
-        if (response.ok) {
-          const blob = await response.blob();
-          const buffer = await blob.arrayBuffer();
+      let fetchedOk = false;
 
-          const isMultipleLayers = area.layerIds.length > 1;
-          const zipPath = isMultipleLayers
-            ? `tiles/${item.layerId}/${item.z}/${item.x}/${item.y}.png`
-            : `tiles/${item.z}/${item.x}/${item.y}.png`;
+      for (const url of item.candidateUrls) {
+        try {
+          const response = await fetch(url, { signal });
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            const blob = new Blob([buffer], { type: 'image/png' });
 
-          zip.file(zipPath, buffer);
+            tileEntries.push({
+              z: item.z,
+              x: item.x,
+              y: item.y,
+              data: new Uint8Array(buffer),
+            });
 
-          // Store in memory map
-          const key1 = `${item.layerId}_${item.z}_${item.x}_${item.y}`;
-          const key2 = `${item.z}_${item.x}_${item.y}`;
-          tileBlobsMap.set(key1, blob);
-          tileBlobsMap.set(key2, blob);
+            const isMultipleLayers = area.layerIds.length > 1;
+            const zipPath = isMultipleLayers
+              ? `tiles/${item.layerId}/${item.z}/${item.x}/${item.y}.png`
+              : `tiles/${item.z}/${item.x}/${item.y}.png`;
 
-          completedTiles++;
-        } else {
-          failedTiles++;
+            zip.file(zipPath, buffer);
+
+            // Store in memory map
+            const key1 = `${item.layerId}_${item.z}_${item.x}_${item.y}`;
+            const key2 = `${item.z}_${item.x}_${item.y}`;
+            tileBlobsMap.set(key1, blob);
+            tileBlobsMap.set(key2, blob);
+
+            completedTiles++;
+            fetchedOk = true;
+            break;
+          }
+        } catch (err) {
+          if (signal?.aborted) throw err;
         }
-      } catch (err) {
-        if (signal?.aborted) throw err;
+      }
+
+      if (!fetchedOk) {
         failedTiles++;
       }
 
@@ -276,8 +302,9 @@ export async function downloadOfflineMapBundle(
     }
   }
 
-  const workers = Array.from({ length: Math.min(CONCURRENCY_LIMIT, Math.max(1, tileQueue.length)) }, () =>
-    fetchWorker()
+  const workers = Array.from(
+    { length: Math.min(CONCURRENCY_LIMIT, Math.max(1, tileQueue.length)) },
+    () => fetchWorker()
   );
 
   await Promise.all(workers);
@@ -364,12 +391,33 @@ export async function downloadOfflineMapBundle(
     percent: 98,
     currentZoom: area.maxZoom,
     status: 'packaging',
-    stepDescription: 'Compressing into offline ZIP package...',
+    stepDescription:
+      area.exportFormat === 'zip'
+        ? 'Compressing into offline ZIP package...'
+        : 'Compiling native PMTiles v3 binary archive...',
   });
 
-  const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
   const cleanName = area.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-  const fileName = `offline-pakistan-${cleanName}-z${area.minZoom}-z${area.maxZoom}.zip`;
+  let finalBlob: Blob;
+  let fileName: string;
+
+  if (area.exportFormat === 'zip') {
+    finalBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    fileName = `offline-pakistan-${cleanName}-z${area.minZoom}-z${area.maxZoom}.zip`;
+  } else {
+    // Generate true PMTiles v3 binary
+    const isSatellite = area.layerIds.some((l) => l.includes('satellite'));
+    finalBlob = buildPMTilesArchive(tileEntries, {
+      name: area.name,
+      description: `Pakistan offline GIS map archive for ${area.name} (Zoom ${area.minZoom}–${area.maxZoom})`,
+      bounds: [area.minLng, area.minLat, area.maxLng, area.maxLat],
+      minZoom: area.minZoom,
+      maxZoom: area.maxZoom,
+      tileType: isSatellite ? 'jpg' : 'png',
+      places,
+    });
+    fileName = `offline-pakistan-${cleanName}-z${area.minZoom}-z${area.maxZoom}.pmtiles`;
+  }
 
   onProgress({
     totalTiles,
@@ -378,7 +426,7 @@ export async function downloadOfflineMapBundle(
     percent: 100,
     currentZoom: area.maxZoom,
     status: 'completed',
-    stepDescription: 'Download complete!',
+    stepDescription: `Download complete! Generated ${fileName}`,
   });
 
   // Automatically persist to offline store (IndexedDB & Memory)
@@ -394,5 +442,5 @@ export async function downloadOfflineMapBundle(
     placesCount: places.length,
   });
 
-  return { blob: zipBlob, fileName, tileBlobsMap, placesCount: places.length };
+  return { blob: finalBlob, fileName, tileBlobsMap, placesCount: places.length };
 }

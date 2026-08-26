@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Mountain,
   FileText,
+  Package,
 } from 'lucide-react';
 import {
   downloadOfflineMapBundle,
@@ -43,6 +44,7 @@ export function MapDownloadModal({
   onApplyToOfflineEngine,
 }: MapDownloadModalProps) {
   const [areaName, setAreaName] = useState('Pakistan (National Coverage)');
+  const [exportFormat, setExportFormat] = useState<'pmtiles' | 'zip'>('pmtiles');
   const [selectedLayerType, setSelectedLayerType] = useState<
     'satellite' | 'street' | 'topo' | 'both'
   >('both');
@@ -113,10 +115,11 @@ export function MapDownloadModal({
       minZoom,
       maxZoom,
       layerIds: activeLayerIds,
+      exportFormat,
       includePlacesData: includePlaces,
       includeTerrainData: includeTerrain,
     }),
-    [areaName, bounds, minZoom, maxZoom, activeLayerIds, includePlaces, includeTerrain]
+    [areaName, bounds, minZoom, maxZoom, activeLayerIds, exportFormat, includePlaces, includeTerrain]
   );
 
   const estimatedTileCount = useMemo(() => {
@@ -614,6 +617,61 @@ export function MapDownloadModal({
                 <span>Z8 (Province)</span>
                 <span>Z12 (City & Roads)</span>
               </div>
+            </div>
+          </div>
+
+          {/* Export File Format Selection (PMTiles vs ZIP) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">
+              Export File Format
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setExportFormat('pmtiles')}
+                className={cn(
+                  'p-3 border rounded-xl font-bold text-left flex items-start gap-2.5 transition',
+                  exportFormat === 'pmtiles'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                    : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                )}
+              >
+                <div className="p-1.5 bg-blue-600/10 text-blue-600 rounded-lg shrink-0 mt-0.5">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>📦 PMTiles Archive (.pmtiles)</span>
+                    <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.5 rounded font-mono">
+                      NATIVE
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                    Single-file binary GIS archive with Hilbert spatial indexing.
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExportFormat('zip')}
+                className={cn(
+                  'p-3 border rounded-xl font-bold text-left flex items-start gap-2.5 transition',
+                  exportFormat === 'zip'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                    : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                )}
+              >
+                <div className="p-1.5 bg-emerald-600/10 text-emerald-600 rounded-lg shrink-0 mt-0.5">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold">🗜️ ZIP Bundle (.zip)</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                    Includes raw z/x/y tile files, Places GeoJSON & DEM elevation grid.
+                  </div>
+                </div>
+              </button>
             </div>
           </div>
 
