@@ -19,6 +19,7 @@ interface AppState {
   links: RFLink[];
   addLink: (link: RFLink) => void;
   updateLink: (link: RFLink) => void;
+  removeLink: (id: string) => void;
   equipmentDB: Equipment[];
   addEquipment: (eq: Equipment) => void;
   updateEquipment: (eq: Equipment) => void;
@@ -504,6 +505,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLinks(prev => prev.map(l => l.id === updatedLink.id ? updatedLink : l));
   };
 
+  const removeLink = (id: string) => {
+    setLinks(prev => prev.filter(l => l.id !== id));
+  };
+
   const addEquipment = (eq: Equipment) => setEquipmentDB(prev => [...prev, eq]);
   
   const updateEquipment = (updatedEq: Equipment) => {
@@ -584,7 +589,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       currentView, setCurrentView,
       sites, addSite, removeSite, updateSite, clearAllSites,
-      links, addLink, updateLink,
+      links, addLink, updateLink, removeLink,
       equipmentDB, addEquipment, updateEquipment, removeEquipment,
       batchUpdateFrequencies,
       theme, setTheme, toggleTheme,

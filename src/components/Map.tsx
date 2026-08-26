@@ -13,10 +13,18 @@ import {
   Sparkles,
   Maximize2,
   Download,
+  Cable,
+  Zap,
+  X,
+  Activity,
+  Trash2,
+  ArrowRight,
+  ShieldCheck,
+  Link2,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import { cn } from '../lib/utils';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { cn, calculateDistanceKm, calculateFSPL, calculateBearing } from '../lib/utils';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -26,6 +34,7 @@ import { OfflineMapEngine } from './OfflineMapEngine';
 import { MapSearchBar } from './MapSearchBar';
 import { MapDownloadModal } from './MapDownloadModal';
 import { ONLINE_MAP_LAYERS, DEFAULT_ONLINE_LAYER_ID, type MapLayerConfig } from '../gis/mapLayers';
+import { type Site, type RFLink } from '../types';
 
 const DefaultIcon = L.icon({
   iconUrl,
@@ -53,8 +62,8 @@ const searchTargetIcon = L.divIcon({
   popupAnchor: [0, -32],
 });
 
-// Site Icons creator
-function createSiteIcon(type: string) {
+// Site Icons creator with Cisco Packet Tracer selection animation
+function createSiteIcon(type: string, isConnectingSource = false) {
   const typeColors: Record<string, string> = {
     repeater: '#10b981', // green
     'base-station': '#2563eb', // blue
@@ -64,11 +73,16 @@ function createSiteIcon(type: string) {
   };
   const color = typeColors[type] || '#3b82f6';
 
+  const pulseRing = isConnectingSource
+    ? `<div style="position: absolute; top: -8px; left: -8px; width: 42px; height: 42px; border-radius: 50%; border: 2.5px solid #06b6d4; animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite; box-shadow: 0 0 12px #06b6d4;"></div>`
+    : '';
+
   return L.divIcon({
     className: 'rnms-site-leaflet-marker',
     html: `
       <div style="position: relative; width: 26px; height: 26px; transform: translate(-13px, -13px);">
-        <div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+        ${pulseRing}
+        <div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
           <svg style="width: 14px; height: 14px; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20m0-20l7 7m-7-7L5 9m7 13l7-7m-7 7l-7-7"/>
           </svg>
@@ -81,7 +95,60 @@ function createSiteIcon(type: string) {
   });
 }
 
+// RF Link Midpoint Badge creator
+function createLinkBadgeIcon(distanceKm: number, snr: number, status: string, color: string) {
+  return L.divIcon({
+    className: 'rnms-link-leaflet-badge',
+    html: `
+      <div style="transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.94); border: 1.5px solid ${color}; border-radius: 6px; padding: 2px 6px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(4px); white-space: nowrap; cursor: pointer;">
+        <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${color}; box-shadow: 0 0 5px ${color};"></span>
+        <span>${distanceKm.toFixed(1)} km</span>
+        <span style="color: #64748b;">•</span>
+        <span style="color: ${color};">${snr.toFixed(1)} dB SNR</span>
+      </div>
+    `,
+    iconSize: [120, 24],
+    iconAnchor: [60, 12],
+  });
+}
+
 type MapMode = 'online' | 'offline';
+
+// Cisco Packet Tracer Live Wire Component
+function LiveWireLayer({
+  isConnecting,
+  source,
+}: {
+  isConnecting: boolean;
+  source: Site | null;
+}) {
+  const [mousePos, setMousePos] = useState<[number, number] | null>(null);
+
+  useMapEvents({
+    mousemove: (e) => {
+      if (isConnecting && source) {
+        setMousePos([e.latlng.lat, e.latlng.lng]);
+      }
+    },
+  });
+
+  if (!isConnecting || !source || !mousePos) return null;
+
+  return (
+    <Polyline
+      positions={[
+        [source.lat, source.lng],
+        mousePos,
+      ]}
+      pathOptions={{
+        color: '#06b6d4',
+        weight: 3,
+        dashArray: '6, 6',
+        opacity: 0.85,
+      }}
+    />
+  );
+}
 
 // Leaflet Map Camera controller
 function LeafletMapController({
@@ -130,7 +197,7 @@ function LeafletMapController({
 }
 
 export function Map() {
-  const { theme, sites } = useAppContext();
+  const { theme, sites, links, addLink, removeLink, setCurrentView } = useAppContext();
   const [mode, setModeState] = useState<MapMode>(() => {
     return (localStorage.getItem('rnms_map_mode') as MapMode) || 'online';
   });
@@ -140,6 +207,26 @@ export function Map() {
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState<boolean>(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('Offline GIS engine ready');
+
+  // Cisco Packet Tracer Link Wiring Mode State
+  const [isConnecting, setIsConnecting] = useState<boolean>(false);
+  const [connectingSource, setConnectingSource] = useState<Site | null>(null);
+  const [showLinks, setShowLinks] = useState<boolean>(true);
+  const [showLinkMetrics, setShowLinkMetrics] = useState<boolean>(true);
+  const [connectToast, setConnectToast] = useState<string | null>(null);
+  const [selectedLinkInfo, setSelectedLinkInfo] = useState<{
+    link: RFLink;
+    source: Site;
+    target: Site;
+    distanceKm: number;
+    snr: number;
+    rsl: number;
+    fspl: number;
+    status: 'EXCELLENT' | 'GOOD' | 'MARGINAL' | 'CRITICAL' | 'OFFLINE';
+    color: string;
+    bearingAtoB: number;
+    bearingBtoA: number;
+  } | null>(null);
 
   const setMode = (newMode: MapMode) => {
     setModeState(newMode);
@@ -174,6 +261,69 @@ export function Map() {
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
+
+  // Cisco Packet Tracer Site-to-Site click handler
+  const handleSiteClickForConnection = (clickedSite: Site) => {
+    if (!isConnecting) return;
+
+    if (!connectingSource) {
+      setConnectingSource(clickedSite);
+      setConnectToast(`🔌 Source: ${clickedSite.name} selected. Now click the Target Station.`);
+    } else {
+      if (connectingSource.id === clickedSite.id) {
+        setConnectToast(`⚠️ Cannot connect a station to itself.`);
+        return;
+      }
+
+      // Check if link already exists
+      const existing = links.find(
+        (l) =>
+          (l.sourceSiteId === connectingSource.id && l.targetSiteId === clickedSite.id) ||
+          (l.sourceSiteId === clickedSite.id && l.targetSiteId === connectingSource.id)
+      );
+
+      if (existing) {
+        setConnectToast(`⚠️ Link already exists between ${connectingSource.name} and ${clickedSite.name}.`);
+        setConnectingSource(null);
+        setIsConnecting(false);
+        return;
+      }
+
+      // Create new link
+      const distanceKm = calculateDistanceKm(
+        connectingSource.lat,
+        connectingSource.lng,
+        clickedSite.lat,
+        clickedSite.lng
+      );
+      const freqMHz = connectingSource.txFreqMHz || clickedSite.txFreqMHz || 435.0;
+      const txPower = connectingSource.txPowerW
+        ? Number((10 * Math.log10(connectingSource.txPowerW * 1000)).toFixed(1))
+        : 43;
+
+      const newLink: RFLink = {
+        id: `link-${Date.now()}`,
+        sourceSiteId: connectingSource.id,
+        targetSiteId: clickedSite.id,
+        equipmentId: null,
+        distanceKm: Number(distanceKm.toFixed(2)),
+        frequencyMHz: freqMHz,
+        txPowerDBm: txPower,
+        txAntennaGainDBi: 6,
+        rxAntennaGainDBi: 6,
+        txCableLossDB: 1.5,
+        rxCableLossDB: 1.5,
+        fadeMarginDB: 15,
+      };
+
+      addLink(newLink);
+      setConnectToast(
+        `✅ RF Link Established: ${connectingSource.name} ➔ ${clickedSite.name} (${distanceKm.toFixed(1)} km)`
+      );
+      setConnectingSource(null);
+      setIsConnecting(false);
+    }
+  };
 
   const handleSelectLocation = (loc: {
     lat: number;
@@ -292,15 +442,140 @@ export function Map() {
               />
             )}
 
+            {/* Cisco Packet Tracer Live Wire Preview while dragging */}
+            <LiveWireLayer isConnecting={isConnecting} source={connectingSource} />
+
+            {/* Site-to-Site RF Links (Packet Tracer Colored Links) */}
+            {showLinks &&
+              links.map((link) => {
+                const s = sites.find((site) => site.id === link.sourceSiteId);
+                const t = sites.find((site) => site.id === link.targetSiteId);
+                if (!s || !t || isNaN(s.lat) || isNaN(s.lng) || isNaN(t.lat) || isNaN(t.lng)) return null;
+
+                const distanceKm = calculateDistanceKm(s.lat, s.lng, t.lat, t.lng);
+                const freqMHz = link.frequencyMHz || 400;
+                const fspl = calculateFSPL(distanceKm, freqMHz);
+                const txPower = link.txPowerDBm ?? 43;
+                const txGain = link.txAntennaGainDBi ?? 6;
+                const rxGain = link.rxAntennaGainDBi ?? 6;
+                const txLoss = link.txCableLossDB ?? 1.5;
+                const rxLoss = link.rxCableLossDB ?? 1.5;
+                const rsl = txPower + txGain + rxGain - txLoss - rxLoss - fspl;
+                const bandwidthHz = (link.channelBandwidthKHz || 12.5) * 1000;
+                const noiseFloor = -174 + 10 * Math.log10(bandwidthHz);
+                const snr = rsl - noiseFloor;
+                const bearingAtoB = calculateBearing(s.lat, s.lng, t.lat, t.lng);
+                const bearingBtoA = (bearingAtoB + 180) % 360;
+
+                let status: 'EXCELLENT' | 'GOOD' | 'MARGINAL' | 'CRITICAL' | 'OFFLINE' = 'GOOD';
+                let color = '#22c55e'; // green
+
+                if (s.status === 'offline' || t.status === 'offline') {
+                  status = 'OFFLINE';
+                  color = '#94a3b8'; // gray
+                } else if (snr >= 35) {
+                  status = 'EXCELLENT';
+                  color = '#10b981'; // emerald
+                } else if (snr >= 22) {
+                  status = 'GOOD';
+                  color = '#22c55e'; // green
+                } else if (snr >= 12) {
+                  status = 'MARGINAL';
+                  color = '#f59e0b'; // amber
+                } else {
+                  status = 'CRITICAL';
+                  color = '#ef4444'; // red
+                }
+
+                const linkInfo = {
+                  link,
+                  source: s,
+                  target: t,
+                  distanceKm,
+                  snr,
+                  rsl,
+                  fspl,
+                  status,
+                  color,
+                  bearingAtoB,
+                  bearingBtoA,
+                };
+
+                return (
+                  <React.Fragment key={link.id}>
+                    {/* Outer Glow */}
+                    <Polyline
+                      positions={[
+                        [s.lat, s.lng],
+                        [t.lat, t.lng],
+                      ]}
+                      pathOptions={{
+                        color,
+                        weight: 8,
+                        opacity: 0.25,
+                      }}
+                      eventHandlers={{
+                        click: (e) => {
+                          L.DomEvent.stopPropagation(e);
+                          setSelectedLinkInfo(linkInfo);
+                        },
+                      }}
+                    />
+
+                    {/* Core Solid Link */}
+                    <Polyline
+                      positions={[
+                        [s.lat, s.lng],
+                        [t.lat, t.lng],
+                      ]}
+                      pathOptions={{
+                        color,
+                        weight: 3.5,
+                        opacity: 0.95,
+                        dashArray: status === 'OFFLINE' ? '6, 6' : undefined,
+                      }}
+                      eventHandlers={{
+                        click: (e) => {
+                          L.DomEvent.stopPropagation(e);
+                          setSelectedLinkInfo(linkInfo);
+                        },
+                      }}
+                    />
+
+                    {/* Midpoint Metric Badge */}
+                    {showLinkMetrics && (
+                      <Marker
+                        position={[(s.lat + t.lat) / 2, (s.lng + t.lng) / 2]}
+                        icon={createLinkBadgeIcon(distanceKm, snr, status, color)}
+                        eventHandlers={{
+                          click: (e) => {
+                            L.DomEvent.stopPropagation(e);
+                            setSelectedLinkInfo(linkInfo);
+                          },
+                        }}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
             {/* Site Markers */}
             {sites.map((site) => (
               <Marker
                 key={site.id}
                 position={[site.lat, site.lng]}
-                icon={createSiteIcon(site.type)}
+                icon={createSiteIcon(site.type, connectingSource?.id === site.id)}
+                eventHandlers={{
+                  click: (e) => {
+                    if (isConnecting) {
+                      L.DomEvent.stopPropagation(e);
+                      handleSiteClickForConnection(site);
+                    }
+                  },
+                }}
               >
                 <Popup>
-                  <div className="p-1 font-sans">
+                  <div className="p-1 font-sans min-w-[170px]">
                     <div className="font-bold text-sm text-slate-800">{site.name}</div>
                     <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">
                       {site.type.replace('-', ' ')}
@@ -312,6 +587,20 @@ export function Map() {
                       </div>
                       {site.txFreqMHz && <div>TX: {site.txFreqMHz} MHz</div>}
                     </div>
+
+                    {/* Quick Connect Link Action */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsConnecting(true);
+                        setConnectingSource(site);
+                        setConnectToast(`🔌 Source: ${site.name} selected. Now click Target Station.`);
+                      }}
+                      className="w-full mt-2.5 py-1.5 px-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs"
+                    >
+                      <Cable className="w-3.5 h-3.5" />
+                      <span>Connect Link to Another Station</span>
+                    </button>
                   </div>
                 </Popup>
               </Marker>
@@ -368,6 +657,35 @@ export function Map() {
             )}
           </MapContainer>
 
+          {/* Cisco Packet Tracer Connection Mode HUD Banner */}
+          {isConnecting && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[450] bg-slate-900/95 text-white border border-cyan-500/80 rounded-2xl px-4 py-2.5 shadow-2xl backdrop-blur-md flex items-center gap-3 text-xs animate-in slide-in-from-top-3">
+              <Cable className="w-4 h-4 text-cyan-400 animate-pulse" />
+              <div>
+                {!connectingSource ? (
+                  <span>
+                    <b>Step 1:</b> Click on the <b>Source RF Station</b> to start link wiring
+                  </span>
+                ) : (
+                  <span>
+                    <b>Step 2:</b> Source: <b className="text-cyan-400">{connectingSource.name}</b> ➔ Now click the <b>Target RF Station</b>
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConnecting(false);
+                  setConnectingSource(null);
+                  setConnectToast(null);
+                }}
+                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-bold text-[10px] border border-slate-700 transition ml-2"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           {/* Floating Top Controls Overlay */}
           <div className="absolute top-3 left-3 right-3 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
             {/* Universal Search Bar */}
@@ -381,8 +699,69 @@ export function Map() {
               />
             </div>
 
-            {/* Download Map Button & English Layer Switcher Menu */}
-            <div className="flex items-center gap-2 pointer-events-auto">
+            {/* Top Toolbar Actions: Connect Sites, Links, Layers, Download */}
+            <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto">
+              {/* Cisco Packet Tracer Wiring Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isConnecting) {
+                    setIsConnecting(false);
+                    setConnectingSource(null);
+                    setConnectToast(null);
+                  } else {
+                    setIsConnecting(true);
+                    setConnectingSource(null);
+                    setConnectToast('🔌 Packet Tracer Wire Tool: Click 1st RF Station (Source)');
+                  }
+                }}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-xl shadow-lg text-xs font-bold transition',
+                  isConnecting
+                    ? 'bg-cyan-600 hover:bg-cyan-700 text-white ring-2 ring-cyan-400'
+                    : 'bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                )}
+                title="Cisco Packet Tracer style RF Link Wiring Tool"
+              >
+                <Cable className="w-4 h-4 text-cyan-500" />
+                <span>{isConnecting ? 'Wiring Mode' : 'Connect Stations'}</span>
+              </button>
+
+              {/* Toggle Links Button */}
+              <button
+                type="button"
+                onClick={() => setShowLinks(!showLinks)}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-2 font-semibold rounded-xl border text-xs shadow-lg transition',
+                  showLinks
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-300'
+                    : 'bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50'
+                )}
+                title="Toggle RF Links overlay"
+              >
+                <Wifi className="w-3.5 h-3.5" />
+                <span>Links ({links.length})</span>
+              </button>
+
+              {/* Toggle Metrics Button */}
+              {showLinks && links.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowLinkMetrics(!showLinkMetrics)}
+                  className={cn(
+                    'flex items-center gap-1 px-2.5 py-2 font-semibold rounded-xl border text-xs shadow-lg transition',
+                    showLinkMetrics
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300'
+                      : 'bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50'
+                  )}
+                  title="Toggle Air Distance & SNR labels"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>SNR & Dist</span>
+                </button>
+              )}
+
+              {/* Download Map Button */}
               <button
                 type="button"
                 onClick={() => setIsDownloadModalOpen(true)}
@@ -390,9 +769,10 @@ export function Map() {
                 title="Download map area for offline use"
               >
                 <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Download for Offline</span>
+                <span className="hidden sm:inline">Download</span>
               </button>
 
+              {/* English Layer Switcher Menu */}
               <div ref={layerMenuRef} className="relative">
                 <button
                   type="button"
@@ -438,6 +818,135 @@ export function Map() {
               </div>
             </div>
           </div>
+
+          {/* Selected RF Link Details Inspector Card */}
+          {selectedLinkInfo && (
+            <div className="absolute bottom-6 left-3 z-[450] w-80 sm:w-96 bg-slate-900/95 text-white rounded-2xl border border-slate-700 shadow-2xl p-4 backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full animate-pulse shadow-sm"
+                    style={{ backgroundColor: selectedLinkInfo.color }}
+                  />
+                  <span className="font-bold text-xs text-slate-200 uppercase tracking-wider">
+                    RF Link Connectivity
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase"
+                    style={{
+                      backgroundColor: `${selectedLinkInfo.color}25`,
+                      color: selectedLinkInfo.color,
+                      border: `1px solid ${selectedLinkInfo.color}60`,
+                    }}
+                  >
+                    {selectedLinkInfo.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLinkInfo(null)}
+                    className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Site-to-Site Nodes */}
+              <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60 mb-3 flex items-center justify-between text-xs">
+                <div className="min-w-0">
+                  <div className="font-bold text-blue-400 truncate">{selectedLinkInfo.source.name}</div>
+                  <div className="text-[10px] text-slate-400">{selectedLinkInfo.source.elevation}m AMSL</div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 mx-2 shrink-0" />
+                <div className="text-right min-w-0">
+                  <div className="font-bold text-emerald-400 truncate">{selectedLinkInfo.target.name}</div>
+                  <div className="text-[10px] text-slate-400">{selectedLinkInfo.target.elevation}m AMSL</div>
+                </div>
+              </div>
+
+              {/* Key RF Connectivity Metrics */}
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono mb-3">
+                <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-sans">Air Distance</div>
+                  <div className="font-bold text-white text-sm">
+                    {selectedLinkInfo.distanceKm.toFixed(2)} km
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-sans">
+                    {(selectedLinkInfo.distanceKm * 0.621371).toFixed(2)} miles
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-sans">SNR Value</div>
+                  <div className="font-bold text-sm" style={{ color: selectedLinkInfo.color }}>
+                    {selectedLinkInfo.snr.toFixed(1)} dB
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-sans">Signal-to-Noise</div>
+                </div>
+
+                <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-sans">Received Signal (RSL)</div>
+                  <div className="font-bold text-white text-xs">{selectedLinkInfo.rsl.toFixed(1)} dBm</div>
+                  <div className="text-[9px] text-slate-500 font-sans">
+                    FSPL: {selectedLinkInfo.fspl.toFixed(1)} dB
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-sans">True Bearing / Azimuth</div>
+                  <div className="font-bold text-white text-xs">
+                    {selectedLinkInfo.bearingAtoB.toFixed(1)}° ➔ {selectedLinkInfo.bearingBtoA.toFixed(1)}°
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-sans">
+                    Freq: {selectedLinkInfo.link.frequencyMHz || 400} MHz
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentView('los');
+                  }}
+                  className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Real DEM LOS Profiler</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeLink(selectedLinkInfo.link.id);
+                    setSelectedLinkInfo(null);
+                    setConnectToast('🗑️ RF Link Disconnected');
+                  }}
+                  className="px-2.5 py-2 bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 transition"
+                  title="Delete/Disconnect this RF Link"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Connect Toast Notice */}
+          {connectToast && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[460] bg-slate-900/95 text-white border border-cyan-500/80 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-xs flex items-center gap-2 animate-in fade-in">
+              <span>{connectToast}</span>
+              <button
+                type="button"
+                onClick={() => setConnectToast(null)}
+                className="text-slate-400 hover:text-white ml-2 text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Download Modal */}
