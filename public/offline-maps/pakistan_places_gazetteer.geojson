@@ -1,0 +1,4324 @@
+{
+  "type": "FeatureCollection",
+  "name": "Pakistan_Places_Gazetteer",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Islamabad (Federal Capital)",
+        "category": "City",
+        "elevationM": 540,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0479,
+          33.6844,
+          540
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Pir Sohawa / Margalla Ridge (Repeater Top)",
+        "category": "Mountain/Pass",
+        "elevationM": 1100,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.09,
+          33.785,
+          1100
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Daman-e-Koh (Margalla Viewpoint)",
+        "category": "Mountain/Pass",
+        "elevationM": 730,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.056,
+          33.7431,
+          730
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bhara Kahu (Murree Road Node)",
+        "category": "City",
+        "elevationM": 610,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.1656,
+          33.7431,
+          610
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tarnol (GT Road Junction)",
+        "category": "City",
+        "elevationM": 504,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.9069,
+          33.6492,
+          504
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rawal Dam Node",
+        "category": "City",
+        "elevationM": 535,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.125,
+          33.7,
+          535
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Simly Dam Reservoir",
+        "category": "City",
+        "elevationM": 700,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.332,
+          33.765,
+          700
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nilore (PAEC Complex)",
+        "category": "Cantonment/Base",
+        "elevationM": 580,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.25,
+          33.65,
+          580
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Fatima Jinnah Park (F-9)",
+        "category": "City",
+        "elevationM": 545,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.02,
+          33.702,
+          545
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lahore (Corps HQ / Provincial Capital)",
+        "category": "City",
+        "elevationM": 217,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.3587,
+          31.5204,
+          217
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lahore Cantt (PAF / Army)",
+        "category": "Cantonment/Base",
+        "elevationM": 218,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.39,
+          31.528,
+          218
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rawalpindi (GHQ / Cantt)",
+        "category": "Cantonment/Base",
+        "elevationM": 508,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0169,
+          33.5651,
+          508
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PAF Base Nur Khan (Chaklala)",
+        "category": "Cantonment/Base",
+        "elevationM": 508,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0989,
+          33.6167,
+          508
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Faisalabad (Textile Hub)",
+        "category": "City",
+        "elevationM": 184,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0791,
+          31.4187,
+          184
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gujranwala Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 226,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.1945,
+          32.1877,
+          226
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Multan (Corps HQ)",
+        "category": "City",
+        "elevationM": 122,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.4687,
+          30.1984,
+          122
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Multan Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 124,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.44,
+          30.18,
+          124
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sialkot Base & Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 256,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.531,
+          32.4921,
+          256
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sargodha (PAF Base Mushaf)",
+        "category": "Cantonment/Base",
+        "elevationM": 193,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.6711,
+          32.0836,
+          193
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bahawalpur (Corps HQ)",
+        "category": "City",
+        "elevationM": 116,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.6833,
+          29.3957,
+          116
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bahawalpur Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 118,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.67,
+          29.38,
+          118
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sheikhupura",
+        "category": "City",
+        "elevationM": 226,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.985,
+          31.7167,
+          226
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rahim Yar Khan",
+        "category": "City",
+        "elevationM": 83,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.2989,
+          28.4212,
+          83
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jhang",
+        "category": "City",
+        "elevationM": 157,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.3317,
+          31.2781,
+          157
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dera Ghazi Khan",
+        "category": "City",
+        "elevationM": 121,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.6317,
+          30.0489,
+          121
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Fort Munro Hill Station (Repeater Peak)",
+        "category": "Mountain/Pass",
+        "elevationM": 1800,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.9833,
+          29.9333,
+          1800
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gujrat",
+        "category": "City",
+        "elevationM": 224,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.0789,
+          32.5736,
+          224
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kharian Cantt (2nd Strike Corps)",
+        "category": "Cantonment/Base",
+        "elevationM": 260,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.8647,
+          32.8156,
+          260
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sahiwal",
+        "category": "City",
+        "elevationM": 152,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.1114,
+          30.6682,
+          152
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Wah Cantonment (POF Complex)",
+        "category": "Cantonment/Base",
+        "elevationM": 471,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.75,
+          33.77,
+          471
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Taxila Industrial & Heritage",
+        "category": "City",
+        "elevationM": 495,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.8286,
+          33.7439,
+          495
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Hasan Abdal",
+        "category": "City",
+        "elevationM": 400,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.6903,
+          33.8194,
+          400
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Attock Cantt & Fort",
+        "category": "Cantonment/Base",
+        "elevationM": 348,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.3667,
+          33.7667,
+          348
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kamra (PAC / PAF Minhas)",
+        "category": "Cantonment/Base",
+        "elevationM": 330,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.4,
+          33.85,
+          330
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kasur (Ganda Singh Border)",
+        "category": "City",
+        "elevationM": 200,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.4469,
+          31.1156,
+          200
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Okara Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 164,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.4597,
+          30.81,
+          164
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chiniot",
+        "category": "City",
+        "elevationM": 179,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.9789,
+          31.72,
+          179
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kamoke",
+        "category": "City",
+        "elevationM": 224,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.2231,
+          31.9708,
+          224
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Hafizabad",
+        "category": "City",
+        "elevationM": 207,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.6858,
+          32.0679,
+          207
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sadiqabad",
+        "category": "City",
+        "elevationM": 78,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.1302,
+          28.3006,
+          78
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Burewala",
+        "category": "City",
+        "elevationM": 133,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.65,
+          30.1667,
+          133
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Muzaffargarh",
+        "category": "City",
+        "elevationM": 122,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.1933,
+          30.0703,
+          122
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mandi Bahauddin",
+        "category": "City",
+        "elevationM": 218,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.4917,
+          32.5861,
+          218
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jhelum River Bridge Node",
+        "category": "City",
+        "elevationM": 234,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.7333,
+          32.9333,
+          234
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mangla Dam / Army Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 300,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.645,
+          33.1417,
+          300
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tilla Jogian (Salt Range Repeater Peak)",
+        "category": "Mountain/Pass",
+        "elevationM": 975,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.4358,
+          32.8733,
+          975
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Khanewal Junction",
+        "category": "City",
+        "elevationM": 128,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.9321,
+          30.3017,
+          128
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bahawalnagar",
+        "category": "City",
+        "elevationM": 161,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.2536,
+          29.9983,
+          161
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Toba Tek Singh",
+        "category": "City",
+        "elevationM": 150,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.48,
+          30.97,
+          150
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Pakpattan Sharif",
+        "category": "City",
+        "elevationM": 153,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.3866,
+          30.341,
+          153
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Vehari",
+        "category": "City",
+        "elevationM": 133,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.3528,
+          30.0419,
+          133
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mianwali (PAF Base MM Alam)",
+        "category": "Cantonment/Base",
+        "elevationM": 200,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.537,
+          32.5839,
+          200
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sakesar PAF Radar Top (Salt Range Peak)",
+        "category": "Mountain/Pass",
+        "elevationM": 1522,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.9333,
+          32.5417,
+          1522
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Khushab",
+        "category": "City",
+        "elevationM": 210,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.3502,
+          32.2952,
+          210
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bhakkar",
+        "category": "City",
+        "elevationM": 159,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.0667,
+          31.6333,
+          159
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chakwal",
+        "category": "City",
+        "elevationM": 521,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.85,
+          32.9333,
+          521
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PAF Murid (Chakwal Airbase)",
+        "category": "Cantonment/Base",
+        "elevationM": 510,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.78,
+          32.91,
+          510
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kallar Kahar Lake & Motorway Node",
+        "category": "Mountain/Pass",
+        "elevationM": 610,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.7,
+          32.7833,
+          610
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Choa Saidan Shah",
+        "category": "City",
+        "elevationM": 676,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.9833,
+          32.7167,
+          676
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Layyah",
+        "category": "City",
+        "elevationM": 143,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.9428,
+          30.9693,
+          143
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rajanpur",
+        "category": "City",
+        "elevationM": 104,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.325,
+          29.1035,
+          104
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nankana Sahib",
+        "category": "City",
+        "elevationM": 195,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.7,
+          31.45,
+          195
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Murree Hills (Mall Road / Tower Peak)",
+        "category": "Mountain/Pass",
+        "elevationM": 2291,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.3943,
+          33.907,
+          2291
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bhurban (Murree High Ground)",
+        "category": "Mountain/Pass",
+        "elevationM": 2000,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.45,
+          33.955,
+          2000
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Patriata Chairlift Top (New Murree)",
+        "category": "Mountain/Pass",
+        "elevationM": 2200,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.45,
+          33.88,
+          2200
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kot Radha Kishan",
+        "category": "City",
+        "elevationM": 202,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.1008,
+          31.1714,
+          202
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gujar Khan",
+        "category": "City",
+        "elevationM": 450,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.3,
+          33.25,
+          450
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Head Marala (Chenab River)",
+        "category": "City",
+        "elevationM": 240,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.47,
+          32.67,
+          240
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Head Panjnad (5 Rivers Confluence)",
+        "category": "City",
+        "elevationM": 95,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.025,
+          29.345,
+          95
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Qadirabad Barrage",
+        "category": "City",
+        "elevationM": 205,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.69,
+          32.32,
+          205
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rasool Barrage",
+        "category": "City",
+        "elevationM": 218,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.535,
+          32.685,
+          218
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Karachi (Southern Command / Metropolis)",
+        "category": "City",
+        "elevationM": 8,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.0011,
+          24.8607,
+          8
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PAF Base Masroor (Karachi)",
+        "category": "Cantonment/Base",
+        "elevationM": 10,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.9389,
+          24.8967,
+          10
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PAF Base Faisal (Karachi)",
+        "category": "Cantonment/Base",
+        "elevationM": 20,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.1194,
+          24.8778,
+          20
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PNS Mehran (Naval Aviation)",
+        "category": "Cantonment/Base",
+        "elevationM": 18,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.115,
+          24.885,
+          18
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PNS Qasim (Manora Island)",
+        "category": "Cantonment/Base",
+        "elevationM": 5,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.975,
+          24.795,
+          5
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Port Qasim Industrial Terminal",
+        "category": "Airport",
+        "elevationM": 5,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.34,
+          24.78,
+          5
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Karachi Port Trust (KPT)",
+        "category": "Airport",
+        "elevationM": 4,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.98,
+          24.835,
+          4
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Malir Cantonment (Karachi)",
+        "category": "Cantonment/Base",
+        "elevationM": 28,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.195,
+          24.93,
+          28
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PAF Base Bholari (Modern Fighter Base)",
+        "category": "Cantonment/Base",
+        "elevationM": 50,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.05,
+          25.25,
+          50
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Hyderabad Cantt & City",
+        "category": "City",
+        "elevationM": 30,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.3578,
+          25.396,
+          30
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sukkur (Rohri / Lloyd Barrage)",
+        "category": "City",
+        "elevationM": 67,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.8574,
+          27.7052,
+          67
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Larkana (Mohenjo-Daro Node)",
+        "category": "City",
+        "elevationM": 53,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.2117,
+          27.559,
+          53
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nawabshah (Shaheed Benazirabad)",
+        "category": "City",
+        "elevationM": 29,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.4096,
+          26.2483,
+          29
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mirpur Khas",
+        "category": "City",
+        "elevationM": 15,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.0159,
+          25.5251,
+          15
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Shikarpur",
+        "category": "City",
+        "elevationM": 61,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.6382,
+          27.9556,
+          61
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jacobabad (PAF Base Shahbaz)",
+        "category": "Cantonment/Base",
+        "elevationM": 55,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.4514,
+          28.2769,
+          55
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dadu",
+        "category": "City",
+        "elevationM": 31,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.7769,
+          26.7303,
+          31
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gorakh Hill Station (Sindh Highest Peak 5688ft)",
+        "category": "Mountain/Pass",
+        "elevationM": 1734,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.15,
+          26.8667,
+          1734
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tando Adam",
+        "category": "City",
+        "elevationM": 23,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.662,
+          25.7682,
+          23
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tando Allahyar",
+        "category": "City",
+        "elevationM": 21,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.718,
+          25.46,
+          21
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Khairpur Mirs",
+        "category": "City",
+        "elevationM": 55,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.7592,
+          27.5256,
+          55
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Thatta (Makli Necropolis)",
+        "category": "City",
+        "elevationM": 11,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.9236,
+          24.7475,
+          11
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Badin",
+        "category": "City",
+        "elevationM": 10,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.8383,
+          24.6458,
+          10
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ghotki",
+        "category": "City",
+        "elevationM": 73,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.315,
+          28.006,
+          73
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Daharki (Engro Fertilizer Node)",
+        "category": "City",
+        "elevationM": 76,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.71,
+          28.18,
+          76
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kashmore (Guddu Barrage)",
+        "category": "City",
+        "elevationM": 75,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.5833,
+          28.4322,
+          75
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Umerkot Fort",
+        "category": "City",
+        "elevationM": 13,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.7361,
+          25.3614,
+          13
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mithi (Tharparkar Desert HQ)",
+        "category": "City",
+        "elevationM": 40,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.8,
+          24.7333,
+          40
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Islamkot (Thar Coalfields Node)",
+        "category": "City",
+        "elevationM": 52,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.18,
+          24.7,
+          52
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sanghar",
+        "category": "City",
+        "elevationM": 20,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.9481,
+          26.0464,
+          20
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Naushahro Feroze",
+        "category": "City",
+        "elevationM": 38,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.1214,
+          26.8461,
+          38
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jamshoro (University Hub & Kotri Barrage)",
+        "category": "City",
+        "elevationM": 32,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.2833,
+          25.4333,
+          32
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sujawal Bridge Node",
+        "category": "City",
+        "elevationM": 9,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.02,
+          24.6067,
+          9
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Matiari",
+        "category": "City",
+        "elevationM": 25,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.4467,
+          25.5972,
+          25
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kandhkot",
+        "category": "City",
+        "elevationM": 65,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.1822,
+          28.2439,
+          65
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sehwan Sharif (Lal Shahbaz Qalandar)",
+        "category": "City",
+        "elevationM": 35,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.8611,
+          26.425,
+          35
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Manchar Lake Node",
+        "category": "City",
+        "elevationM": 30,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.65,
+          26.42,
+          30
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Keenjhar Lake (Kalri Lake)",
+        "category": "City",
+        "elevationM": 18,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.08,
+          24.93,
+          18
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Keti Bandar (Indus Delta Port)",
+        "category": "Airport",
+        "elevationM": 2,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.45,
+          24.145,
+          2
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Peshawar (11 Corps HQ)",
+        "category": "City",
+        "elevationM": 359,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.5249,
+          34.0151,
+          359
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Peshawar Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 360,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.54,
+          34.008,
+          360
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mardan Cantt & City",
+        "category": "City",
+        "elevationM": 283,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.0404,
+          34.1986,
+          283
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mingora (Swat Valley HQ)",
+        "category": "City",
+        "elevationM": 984,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.36,
+          34.7717,
+          984
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Malam Jabba Ski Resort (High Peak)",
+        "category": "Mountain/Pass",
+        "elevationM": 2804,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.5714,
+          34.7997,
+          2804
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kalam Valley (Upper Swat)",
+        "category": "Mountain/Pass",
+        "elevationM": 2000,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.5878,
+          35.4906,
+          2000
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kohat Cantt & Pass",
+        "category": "Cantonment/Base",
+        "elevationM": 489,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.4414,
+          33.5869,
+          489
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Abbottabad (PMA Kakul HQ)",
+        "category": "Cantonment/Base",
+        "elevationM": 1256,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.2215,
+          34.1688,
+          1256
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nathia Gali (Galyat Ridge)",
+        "category": "Mountain/Pass",
+        "elevationM": 2410,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.38,
+          34.07,
+          2410
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ayubia (Pipeline Track Top)",
+        "category": "Mountain/Pass",
+        "elevationM": 2400,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.4,
+          34.03,
+          2400
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Thandiani Top (Repeater High Ground)",
+        "category": "Mountain/Pass",
+        "elevationM": 2750,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.37,
+          34.23,
+          2750
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dera Ismail Khan (D.I. Khan Cantt)",
+        "category": "City",
+        "elevationM": 165,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.9114,
+          31.8328,
+          165
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nowshera Cantt (Armoured Corps)",
+        "category": "Cantonment/Base",
+        "elevationM": 300,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.9747,
+          34.0153,
+          300
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Cherat Hill Station (SSG Commando Base)",
+        "category": "Cantonment/Base",
+        "elevationM": 1400,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.8889,
+          33.8239,
+          1400
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Risalpur (PAF Asghar Khan Academy)",
+        "category": "Cantonment/Base",
+        "elevationM": 310,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.9833,
+          34.05,
+          310
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Charsadda",
+        "category": "City",
+        "elevationM": 298,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.7408,
+          34.1481,
+          298
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Swabi (Tarbela Dam Complex)",
+        "category": "City",
+        "elevationM": 340,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.4667,
+          34.1167,
+          340
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tarbela Dam Hydro Base",
+        "category": "Cantonment/Base",
+        "elevationM": 450,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.6989,
+          34.0889,
+          450
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bannu Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 379,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.6027,
+          32.9854,
+          379
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Timergara (Lower Dir)",
+        "category": "City",
+        "elevationM": 823,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.8408,
+          34.8281,
+          823
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Upper Dir",
+        "category": "City",
+        "elevationM": 1420,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.87,
+          35.2,
+          1420
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lowari Tunnel & Pass (Dir-Chitral Gateway)",
+        "category": "Mountain/Pass",
+        "elevationM": 3118,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.8,
+          35.3333,
+          3118
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chitral Town (Tirich Mir Base)",
+        "category": "City",
+        "elevationM": 1494,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.7864,
+          35.8511,
+          1494
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Shandur Pass (Polo Ground Top)",
+        "category": "Mountain/Pass",
+        "elevationM": 3700,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.5333,
+          36.0833,
+          3700
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Haripur (Khanpur Dam)",
+        "category": "City",
+        "elevationM": 520,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.9344,
+          33.9994,
+          520
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mansehra",
+        "category": "City",
+        "elevationM": 1088,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.2,
+          34.3333,
+          1088
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Balakot (Kaghan Valley Gateway)",
+        "category": "City",
+        "elevationM": 980,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.3528,
+          34.5489,
+          980
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kaghan Town",
+        "category": "City",
+        "elevationM": 2040,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.53,
+          34.78,
+          2040
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Naran (Saif-ul-Malook Base)",
+        "category": "Mountain/Pass",
+        "elevationM": 2409,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.6528,
+          34.9083,
+          2409
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Babusar Top (KPK-GB Border 13691ft)",
+        "category": "Mountain/Pass",
+        "elevationM": 4173,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.05,
+          35.15,
+          4173
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Karak",
+        "category": "City",
+        "elevationM": 614,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.0833,
+          33.1167,
+          614
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Hangu",
+        "category": "City",
+        "elevationM": 840,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.05,
+          33.5333,
+          840
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Parachinar (Kurram HQ)",
+        "category": "City",
+        "elevationM": 1705,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.1008,
+          33.8992,
+          1705
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Miranshah (North Waziristan HQ)",
+        "category": "Cantonment/Base",
+        "elevationM": 930,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.0667,
+          33,
+          930
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Wana (South Waziristan HQ)",
+        "category": "Cantonment/Base",
+        "elevationM": 1400,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.5722,
+          32.2989,
+          1400
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Landi Kotal (Khyber Pass Summit)",
+        "category": "Mountain/Pass",
+        "elevationM": 1070,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.135,
+          34.095,
+          1070
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Torkham Border Terminal",
+        "category": "Mountain/Pass",
+        "elevationM": 700,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.09,
+          34.125,
+          700
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jamrud Fort",
+        "category": "Cantonment/Base",
+        "elevationM": 460,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.38,
+          34,
+          460
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Battagram",
+        "category": "City",
+        "elevationM": 1040,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0244,
+          34.6778,
+          1040
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Buner (Daggar)",
+        "category": "City",
+        "elevationM": 690,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.48,
+          34.51,
+          690
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Shangla Pass (Alpuri)",
+        "category": "Mountain/Pass",
+        "elevationM": 2130,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.63,
+          34.9,
+          2130
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Besham (KKH Indus River Node)",
+        "category": "City",
+        "elevationM": 610,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.88,
+          34.92,
+          610
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dassu (Upper Kohistan Dam)",
+        "category": "City",
+        "elevationM": 790,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.2,
+          35.29,
+          790
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Malakand Pass & Fort",
+        "category": "Mountain/Pass",
+        "elevationM": 700,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.9167,
+          34.5667,
+          700
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tank",
+        "category": "City",
+        "elevationM": 256,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.3833,
+          32.2167,
+          256
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lakki Marwat",
+        "category": "City",
+        "elevationM": 255,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.9114,
+          32.6075,
+          255
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Quetta (12 Corps / Command & Staff HQ)",
+        "category": "Cantonment/Base",
+        "elevationM": 1680,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.975,
+          30.1798,
+          1680
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PAF Base Samungli (Quetta)",
+        "category": "Cantonment/Base",
+        "elevationM": 1600,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.9389,
+          30.25,
+          1600
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chaman Border Post (Friendship Gate)",
+        "category": "Mountain/Pass",
+        "elevationM": 1330,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.4597,
+          30.921,
+          1330
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Khojak Pass / Shela Bagh Tunnel",
+        "category": "Mountain/Pass",
+        "elevationM": 2290,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.5667,
+          30.8417,
+          2290
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gwadar Deep Sea Port & Free Zone",
+        "category": "Airport",
+        "elevationM": 10,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          62.3225,
+          25.1264,
+          10
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gwadar New International Airport (NGIA)",
+        "category": "Airport",
+        "elevationM": 25,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          62.33,
+          25.23,
+          25
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "PNS Akram (Gwadar Naval Base)",
+        "category": "Cantonment/Base",
+        "elevationM": 12,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          62.34,
+          25.115,
+          12
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ormara (Jinnah Naval Base / PNS Ahsan)",
+        "category": "Cantonment/Base",
+        "elevationM": 8,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          64.6333,
+          25.2,
+          8
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Pasni Coastal Airport & Port",
+        "category": "Airport",
+        "elevationM": 5,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          63.4696,
+          25.2631,
+          5
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jiwani Coastal Node (Pak-Iran Maritime Border)",
+        "category": "Airport",
+        "elevationM": 15,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          61.74,
+          25.05,
+          15
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Khuzdar Cantt & City",
+        "category": "Cantonment/Base",
+        "elevationM": 1237,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.6167,
+          27.8167,
+          1237
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Turbat (Kech HQ / Naval Air Base)",
+        "category": "Cantonment/Base",
+        "elevationM": 129,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          63.0485,
+          26.0012,
+          129
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Hub Industrial City (Karachi Outskirts)",
+        "category": "City",
+        "elevationM": 20,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.8833,
+          25.027,
+          20
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gadani Ship Breaking Yard",
+        "category": "Airport",
+        "elevationM": 10,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.7167,
+          25.1167,
+          10
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sonmiani Space Launch / Defense Range",
+        "category": "Cantonment/Base",
+        "elevationM": 12,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.75,
+          25.19,
+          12
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kund Malir / Hingol National Park",
+        "category": "Mountain/Pass",
+        "elevationM": 20,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          65.45,
+          25.4,
+          20
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sibi (Historic Heat Center)",
+        "category": "City",
+        "elevationM": 130,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.8764,
+          29.5448,
+          130
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bolan Pass (Historic Mountain Highway)",
+        "category": "Mountain/Pass",
+        "elevationM": 1793,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.5833,
+          29.8333,
+          1793
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mach / Kolpur (Bolan Pass Summit)",
+        "category": "Mountain/Pass",
+        "elevationM": 1780,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.13,
+          29.9,
+          1780
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lakpass (Quetta-Mastung Gateway)",
+        "category": "Mountain/Pass",
+        "elevationM": 1850,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.88,
+          30.01,
+          1850
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ziarat Juniper Valley & Residency",
+        "category": "Mountain/Pass",
+        "elevationM": 2453,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.7333,
+          30.3833,
+          2453
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zhob Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 1426,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.4481,
+          31.3411,
+          1426
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Loralai Cantt",
+        "category": "Cantonment/Base",
+        "elevationM": 1435,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.5979,
+          30.3705,
+          1435
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dera Murad Jamali (Nasirabad)",
+        "category": "City",
+        "elevationM": 68,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.2231,
+          28.5466,
+          68
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Usta Muhammad",
+        "category": "City",
+        "elevationM": 55,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.0445,
+          28.1794,
+          55
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nushki (RCD Highway Gateway)",
+        "category": "City",
+        "elevationM": 900,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.0215,
+          29.5542,
+          900
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dalbandin (Chagai Center)",
+        "category": "City",
+        "elevationM": 850,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          64.4,
+          28.8833,
+          850
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Taftan Border Post (Pak-Iran Main Gate)",
+        "category": "Mountain/Pass",
+        "elevationM": 630,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          61.5833,
+          28.9667,
+          630
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Saindak Copper-Gold Project",
+        "category": "City",
+        "elevationM": 880,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          61.6,
+          29.26,
+          880
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Reko Diq Mining Field",
+        "category": "City",
+        "elevationM": 950,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          62.3,
+          29.1,
+          950
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Panjgur Airfield",
+        "category": "Airport",
+        "elevationM": 980,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          64.0906,
+          26.9719,
+          980
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kharan Desert Node",
+        "category": "City",
+        "elevationM": 700,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          65.4167,
+          28.5833,
+          700
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Barkhan",
+        "category": "City",
+        "elevationM": 1100,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.52,
+          29.9,
+          1100
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kohlu",
+        "category": "City",
+        "elevationM": 1180,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.2533,
+          29.8964,
+          1180
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dera Bugti (Sui Gas Fields)",
+        "category": "City",
+        "elevationM": 400,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.1833,
+          29.0306,
+          400
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sui Gas Field Main Plant",
+        "category": "City",
+        "elevationM": 230,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.2,
+          28.6333,
+          230
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kalat Historic Fort",
+        "category": "City",
+        "elevationM": 2007,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.5936,
+          29.0267,
+          2007
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mastung",
+        "category": "City",
+        "elevationM": 1700,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.8456,
+          29.7997,
+          1700
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Awaran",
+        "category": "City",
+        "elevationM": 580,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          65.23,
+          26,
+          580
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Washuk (Nag)",
+        "category": "City",
+        "elevationM": 900,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          64.7,
+          27.8,
+          900
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lasbela (Uthal)",
+        "category": "City",
+        "elevationM": 45,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.6219,
+          25.8078,
+          45
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Harnai Coal Valley",
+        "category": "City",
+        "elevationM": 900,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.93,
+          30.1,
+          900
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chamalang Mines High Ground",
+        "category": "Mountain/Pass",
+        "elevationM": 1600,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.45,
+          30.17,
+          1600
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gilgit (FCNA / Provincial HQ)",
+        "category": "City",
+        "elevationM": 1500,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.3083,
+          35.9208,
+          1500
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Skardu High Altitude Hub",
+        "category": "Airport",
+        "elevationM": 2228,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.6333,
+          35.2971,
+          2228
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "K2 Summit (Godwin-Austen 8611m - 2nd Highest on Earth)",
+        "category": "Mountain/Pass",
+        "elevationM": 8611,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5133,
+          35.8814,
+          8611
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nanga Parbat (Killer Mountain 8126m)",
+        "category": "Mountain/Pass",
+        "elevationM": 8126,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.5892,
+          35.2372,
+          8126
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Broad Peak Summit (8051m)",
+        "category": "Mountain/Pass",
+        "elevationM": 8051,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.565,
+          35.8117,
+          8051
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gasherbrum I Summit (8080m)",
+        "category": "Mountain/Pass",
+        "elevationM": 8080,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.6964,
+          35.7244,
+          8080
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gasherbrum II Summit (8035m)",
+        "category": "Mountain/Pass",
+        "elevationM": 8035,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.6533,
+          35.7583,
+          8035
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rakaposhi Viewpoint & Peak (7788m)",
+        "category": "Mountain/Pass",
+        "elevationM": 7788,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.49,
+          36.14,
+          7788
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Concordia (Glacier Junction)",
+        "category": "Mountain/Pass",
+        "elevationM": 4600,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.51,
+          35.78,
+          4600
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Deosai National Park (Roof of the World)",
+        "category": "Mountain/Pass",
+        "elevationM": 4114,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.45,
+          35.0333,
+          4114
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chilas (Diamer Bhasha Dam Site)",
+        "category": "City",
+        "elevationM": 1265,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.1,
+          35.4167,
+          1265
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Aliabad (Hunza Central)",
+        "category": "City",
+        "elevationM": 2153,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6548,
+          36.3088,
+          2153
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Karimabad (Baltit & Altit Forts)",
+        "category": "Mountain/Pass",
+        "elevationM": 2400,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6631,
+          36.3267,
+          2400
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Passu Cones (Cathedral Ridges)",
+        "category": "Mountain/Pass",
+        "elevationM": 2500,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.88,
+          36.47,
+          2500
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sost Dry Port (Pak-China Customs)",
+        "category": "City",
+        "elevationM": 2800,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.82,
+          36.68,
+          2800
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Khunjerab Pass (Highest Paved Border Crossing 15397ft)",
+        "category": "Mountain/Pass",
+        "elevationM": 4693,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.4231,
+          36.8497,
+          4693
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Attabad Lake Tunnel Highway",
+        "category": "City",
+        "elevationM": 2200,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.87,
+          36.34,
+          2200
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Khaplu Palace & Valley (Ghanche)",
+        "category": "City",
+        "elevationM": 2600,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.3333,
+          35.1333,
+          2600
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Astore Valley (Rama Lake Base)",
+        "category": "City",
+        "elevationM": 2600,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.85,
+          35.35,
+          2600
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gakuch (Ghizer HQ / Phander Gateway)",
+        "category": "City",
+        "elevationM": 2150,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.7667,
+          36.175,
+          2150
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Phander Valley (Trout Waters)",
+        "category": "Mountain/Pass",
+        "elevationM": 2900,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          72.93,
+          36.18,
+          2900
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Shigar Cold Desert & Fort",
+        "category": "City",
+        "elevationM": 2260,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.7275,
+          35.4215,
+          2260
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kharmang Valley",
+        "category": "City",
+        "elevationM": 2450,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.95,
+          35.15,
+          2450
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dambudas (Roundu Gorge)",
+        "category": "City",
+        "elevationM": 1900,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.05,
+          35.6,
+          1900
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Muzaffarabad (AJK State Capital)",
+        "category": "City",
+        "elevationM": 737,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.4711,
+          34.37,
+          737
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mirpur (Mangla Dam City)",
+        "category": "City",
+        "elevationM": 459,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.7528,
+          33.1428,
+          459
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rawalakot (Poonch Division HQ)",
+        "category": "City",
+        "elevationM": 1638,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.76,
+          33.8569,
+          1638
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Toli Pir Ridge (Repeater High Ground 8800ft)",
+        "category": "Mountain/Pass",
+        "elevationM": 2680,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.88,
+          33.89,
+          2680
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Banjosa Lake Node",
+        "category": "Mountain/Pass",
+        "elevationM": 1981,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.82,
+          33.81,
+          1981
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kotli Cantt & City",
+        "category": "City",
+        "elevationM": 609,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.9022,
+          33.5183,
+          609
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bagh City & Division",
+        "category": "City",
+        "elevationM": 1481,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.7747,
+          33.9803,
+          1481
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Pallandri (Sudhanoti HQ)",
+        "category": "City",
+        "elevationM": 1372,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.6897,
+          33.7144,
+          1372
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Athmuqam (Neelum Valley District HQ)",
+        "category": "City",
+        "elevationM": 1371,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.8972,
+          34.5717,
+          1371
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sharda (Neelum Valley Historic Temple)",
+        "category": "Mountain/Pass",
+        "elevationM": 1981,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.1869,
+          34.7936,
+          1981
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kel (Neelum High Ground)",
+        "category": "Mountain/Pass",
+        "elevationM": 2097,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.35,
+          34.825,
+          2097
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Taobat (LOC End Point of Neelum)",
+        "category": "Mountain/Pass",
+        "elevationM": 2300,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.75,
+          34.75,
+          2300
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ratti Gali Lake Base",
+        "category": "Mountain/Pass",
+        "elevationM": 3700,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.96,
+          34.83,
+          3700
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bhimber",
+        "category": "City",
+        "elevationM": 345,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.0759,
+          32.9746,
+          345
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Haveli (Forward Kahuta LOC Sector)",
+        "category": "City",
+        "elevationM": 1800,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.103,
+          33.8825,
+          1800
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Hattian Bala (Jhelum Valley HQ)",
+        "category": "City",
+        "elevationM": 850,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.7431,
+          34.1678,
+          850
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Leepa Valley (Reshian Pass Gateway)",
+        "category": "Mountain/Pass",
+        "elevationM": 1921,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.9,
+          34.3,
+          1921
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chakothi Border Crossing",
+        "category": "Mountain/Pass",
+        "elevationM": 800,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.8833,
+          34.1167,
+          800
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Hub (UAE Telecom & Flight Node)",
+        "category": "Airport",
+        "elevationM": 16,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          55.2708,
+          25.2048,
+          16
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Abu Dhabi International (UAE)",
+        "category": "Airport",
+        "elevationM": 27,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          54.3773,
+          24.4539,
+          27
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Doha Hamad International (Qatar)",
+        "category": "Airport",
+        "elevationM": 11,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          51.6081,
+          25.2731,
+          11
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Riyadh Telecom Center (Saudi Arabia)",
+        "category": "City",
+        "elevationM": 612,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          46.6753,
+          24.7136,
+          612
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Muscat Port & Airfield (Oman)",
+        "category": "Airport",
+        "elevationM": 15,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          58.3829,
+          23.588,
+          15
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tehran Mehrabad (Iran)",
+        "category": "City",
+        "elevationM": 1189,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          51.389,
+          35.6892,
+          1189
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zahedan (Pak-Iran Border Hub)",
+        "category": "City",
+        "elevationM": 1370,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          60.8629,
+          29.4963,
+          1370
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kabul Regional Airfield (Afghanistan)",
+        "category": "City",
+        "elevationM": 1790,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.2075,
+          34.5553,
+          1790
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kandahar International (Afghanistan)",
+        "category": "Airport",
+        "elevationM": 1017,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          65.8478,
+          31.5078,
+          1017
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jalalabad (Khyber Pass Link)",
+        "category": "City",
+        "elevationM": 575,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.4514,
+          34.4267,
+          575
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kashgar (CPEC Northern Terminus / Xinjiang)",
+        "category": "Airport",
+        "elevationM": 1290,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.99,
+          39.47,
+          1290
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Istanbul New Airport (Turkey)",
+        "category": "Airport",
+        "elevationM": 99,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.7519,
+          41.2753,
+          99
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "London Greenwich (Prime Meridian Reference)",
+        "category": "Region",
+        "elevationM": 48,
+        "country": "Pakistan"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0005,
+          51.4769,
+          48
+        ]
+      }
+    }
+  ]
+}

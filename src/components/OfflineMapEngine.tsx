@@ -50,11 +50,29 @@ if (!isCustomPngProtocolRegistered) {
       const y = url.searchParams.get('y') || '';
       const layer = url.searchParams.get('layer') || '';
 
+      // 1. Check custom uploaded & IndexedDB cached tiles
       const foundBlob = await getOfflineTileBlob(z, x, y, layer);
 
       if (foundBlob) {
         const buffer = await foundBlob.arrayBuffer();
         return { data: new Uint8Array(buffer) };
+      }
+
+      // 2. Check bundled embedded Pakistan offline tiles (/tiles/{z}/{x}/{y}.png)
+      const bundledPaths = [
+        `./tiles/${z}/${x}/${y}.png`,
+        `/tiles/${z}/${x}/${y}.png`,
+        `tiles/${z}/${x}/${y}.png`,
+      ];
+
+      for (const p of bundledPaths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) {
+            const buffer = await res.arrayBuffer();
+            return { data: new Uint8Array(buffer) };
+          }
+        } catch {}
       }
 
       // Return 1x1 transparent PNG if tile not found in offline bundle
@@ -116,12 +134,16 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     return localStorage.getItem('rnms_offline_file_path') || '';
   });
   const [activeFileSource, setActiveFileSourceState] = useState<
-    'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'
+    'embedded' | 'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'
   >(() => {
-    return (localStorage.getItem('rnms_offline_active_source') as any) || 'none';
+    const saved = localStorage.getItem('rnms_offline_active_source') as any;
+    return saved || 'embedded';
   });
   const [activeFileName, setActiveFileNameState] = useState<string>(() => {
-    return localStorage.getItem('rnms_offline_file_name') || '';
+    return (
+      localStorage.getItem('rnms_offline_file_name') ||
+      'Pakistan National Map (Built-in Offline)'
+    );
   });
   const [mapFolder, setMapFolderState] = useState<string>(() => {
     return localStorage.getItem('rnms_offline_map_folder') || '';
@@ -161,7 +183,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     localStorage.setItem('rnms_offline_file_path', p);
   };
   const setActiveFileSource = (
-    s: 'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'
+    s: 'embedded' | 'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'
   ) => {
     setActiveFileSourceState(s);
     localStorage.setItem('rnms_offline_active_source', s);
@@ -467,6 +489,52 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     onStatus?.(`Connected to local tile folder: ${mapFolder}`);
   }, [activeFileSource, mapFolder, onStatus, rasterOpacity]);
 
+  // Load Embedded Pakistan Offline Map
+  const applyEmbeddedMap = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!map.isStyleLoaded()) {
+      map.once('load', () => applyEmbeddedMap());
+      return;
+    }
+
+    const existingLayers = map.getStyle().layers || [];
+    for (const l of existingLayers) {
+      if (l.id !== 'background' && !l.id.startsWith('measure-') && !l.id.startsWith('coverage-')) {
+        map.removeLayer(l.id);
+      }
+    }
+    const sourceId = 'rnms-embedded-png-source';
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    map.addSource(sourceId, {
+      type: 'raster',
+      tiles: ['uploaded-png://tile?z={z}&x={x}&y={y}'],
+      tileSize: 256,
+      minzoom: 0,
+      maxzoom: 20,
+    });
+    map.addLayer({
+      id: 'rnms-embedded-png-layer',
+      type: 'raster',
+      source: sourceId,
+      paint: { 'raster-opacity': rasterOpacity },
+    });
+
+    setActiveFileSource('embedded');
+    setActiveFileName('Pakistan National Map (Built-in Offline)');
+    setUploadedTileCount(276);
+    map.fitBounds(
+      [
+        [60.5, 23.5],
+        [78.0, 37.5],
+      ],
+      { padding: 30, duration: 600 }
+    );
+    onStatus?.('Loaded Built-in Pakistan National Offline Map');
+  }, [onStatus, rasterOpacity]);
+
   // Load Web Uploaded PNG tiles
   const applyWebUploadedTiles = useCallback(
     (count: number, folderLabel: string) => {
@@ -509,25 +577,32 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     [onStatus, rasterOpacity]
   );
 
-  // Restore Offline Tiles from IndexedDB on component mount
+  // Restore Offline Map on component mount (Default to Built-in Pakistan Map)
   useEffect(() => {
-    restoreOfflineTilesFromStore().then(({ tileCount, metadata }) => {
-      if (tileCount > 0) {
-        const label = metadata?.name || `Cached Offline Tiles (${tileCount.toLocaleString()})`;
-        applyWebUploadedTiles(tileCount, label);
-        if (metadata?.bounds) {
-          const b = metadata.bounds;
-          mapRef.current?.fitBounds(
-            [
-              [b.minLng, b.minLat],
-              [b.maxLng, b.maxLat],
-            ],
-            { padding: 40, duration: 800 }
-          );
+    const savedSource = localStorage.getItem('rnms_offline_active_source') || 'embedded';
+    if (savedSource === 'embedded' || savedSource === 'none') {
+      applyEmbeddedMap();
+    } else if (savedSource === 'web-folder') {
+      restoreOfflineTilesFromStore().then(({ tileCount, metadata }) => {
+        if (tileCount > 0) {
+          const label = metadata?.name || `Cached Offline Tiles (${tileCount.toLocaleString()})`;
+          applyWebUploadedTiles(tileCount, label);
+          if (metadata?.bounds) {
+            const b = metadata.bounds;
+            mapRef.current?.fitBounds(
+              [
+                [b.minLng, b.minLat],
+                [b.maxLng, b.maxLat],
+              ],
+              { padding: 40, duration: 800 }
+            );
+          }
+        } else {
+          applyEmbeddedMap();
         }
-      }
-    });
-  }, [applyWebUploadedTiles]);
+      });
+    }
+  }, [applyEmbeddedMap, applyWebUploadedTiles]);
 
   // Manual File Upload Handlers (PMTiles, ZIP & PNG Directory)
   const handlePMTilesFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -796,12 +871,10 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     }
   };
 
-  // Reset / Unload Offline Map
+  // Reset / Switch to Built-in Pakistan Offline Map
   const handleResetOfflineMap = () => {
     setFilePath('');
     setMapFolder('');
-    setActiveFileName('');
-    setActiveFileSource('none');
     setHeaderInfo(null);
     setError('');
     clearAllOfflineTiles();
@@ -809,21 +882,10 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     localStorage.removeItem('rnms_offline_file_path');
     localStorage.removeItem('rnms_offline_map_folder');
     localStorage.removeItem('rnms_offline_file_name');
-    localStorage.removeItem('rnms_offline_active_source');
+    localStorage.setItem('rnms_offline_active_source', 'embedded');
 
-    const map = mapRef.current;
-    if (map) {
-      const existingLayers = map.getStyle().layers || [];
-      for (const l of existingLayers) {
-        if (l.id !== 'background' && !l.id.startsWith('measure-') && !l.id.startsWith('coverage-')) {
-          map.removeLayer(l.id);
-        }
-      }
-      if (map.getSource('rnms-offline-pmtiles')) map.removeSource('rnms-offline-pmtiles');
-      if (map.getSource('rnms-offline-png')) map.removeSource('rnms-offline-png');
-      if (map.getSource('rnms-web-png-source')) map.removeSource('rnms-web-png-source');
-    }
-    onStatus?.('Offline map unloaded');
+    applyEmbeddedMap();
+    onStatus?.('Switched to Embedded Pakistan Offline Map');
   };
 
   // Render RF Sites Markers on Offline Map
@@ -1159,6 +1221,21 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
         {/* Offline Upload & Layer Controls */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs">
+          {/* Built-in Pakistan Map Button */}
+          <button
+            type="button"
+            onClick={applyEmbeddedMap}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg transition shadow-xs',
+              activeFileSource === 'embedded'
+                ? 'bg-emerald-600 text-white shadow-emerald-500/20'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+            )}
+            title="Switch to Embedded Pakistan National Offline Map (Built-in)"
+          >
+            <span>🇵🇰 Built-in Pakistan Map</span>
+          </button>
+
           {/* Upload PMTiles / ZIP Button */}
           <button
             type="button"
