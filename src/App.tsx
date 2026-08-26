@@ -21,10 +21,10 @@ import { AboutModal } from './components/AboutModal';
 
 function MainContent() {
   const { currentView, theme } = useAppContext();
+
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
-      case 'map': return <Map />;
       case 'sites': return <SitesNodes />;
       case 'equipment': return <EquipmentDB />;
       case 'rf-links': return <RFLinkBudget />;
@@ -39,7 +39,18 @@ function MainContent() {
       default: return <div className="flex items-center justify-center h-full p-6"><div className="w-full h-full flex flex-col items-center justify-center bg-white border border-slate-300 rounded-xl shadow-sm"><div className="text-6xl mb-4 opacity-30">📡</div><h2 className="text-xl font-bold text-slate-700">Module in Development</h2><p className="mt-2 text-sm text-slate-500 font-medium">The <span className="uppercase text-blue-600 font-bold mx-1">{currentView.replace('-', ' ')}</span> module is currently being engineered.</p></div></div>;
     }
   };
-  return <main className={`flex-1 flex flex-col relative overflow-y-auto ${theme === 'light' ? 'bg-[#f1f5f9]' : 'bg-slate-950'}`}><div className="absolute inset-0 opacity-40 pointer-events-none min-h-full" style={{ backgroundImage: theme === 'light' ? 'radial-gradient(#cbd5e1 0.75px, transparent 0.75px)' : 'radial-gradient(#334155 0.75px, transparent 0.75px)', backgroundSize: '20px 20px' }}></div><div className="relative z-10 flex-1 flex flex-col">{renderView()}</div></main>;
+
+  return <main className={`flex-1 flex flex-col relative overflow-y-auto ${theme === 'light' ? 'bg-[#f1f5f9]' : 'bg-slate-950'}`}>
+    <div className="absolute inset-0 opacity-40 pointer-events-none min-h-full" style={{ backgroundImage: theme === 'light' ? 'radial-gradient(#cbd5e1 0.75px, transparent 0.75px)' : 'radial-gradient(#334155 0.75px, transparent 0.75px)', backgroundSize: '20px 20px' }}></div>
+    <div className="relative z-10 flex-1 flex flex-col">
+      {/* Keep the map mounted while other modules are displayed. This preserves
+          the MapLibre instance, PMTiles state, zoom and center during navigation. */}
+      <div className={currentView === 'map' ? 'flex flex-1 min-h-0' : 'hidden'}>
+        <Map />
+      </div>
+      {currentView !== 'map' && renderView()}
+    </div>
+  </main>;
 }
 
 function AppShell() {
