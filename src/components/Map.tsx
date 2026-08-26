@@ -141,13 +141,41 @@ function createObstructionIcon(deficitM: number, distanceKm: number) {
 
 type MapMode = 'online' | 'offline';
 
-// Cisco Packet Tracer Live Wire Component
+// Cisco Packet Tracer Live Wire Component with Real-Time Terrain Obstacle Preview
+function createLiveWireBadgeIcon(
+  distanceKm: number,
+  isBlocked: boolean,
+  deficitM: number,
+  targetName?: string
+) {
+  const color = isBlocked ? '#ef4444' : '#06b6d4';
+  const label = isBlocked
+    ? `🔴 BLOCKED (+${deficitM.toFixed(0)}m Peak)`
+    : `🟢 CLEAR LOS ${targetName ? `➔ ${targetName}` : ''}`;
+
+  return L.divIcon({
+    className: 'rnms-live-wire-badge',
+    html: `
+      <div style="transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.96); border: 2px solid ${color}; border-radius: 8px; padding: 3px 9px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 6px; box-shadow: 0 0 16px ${color}80, 0 4px 10px rgba(0,0,0,0.6); backdrop-filter: blur(6px); white-space: nowrap; pointer-events: none; animation: pulse 1.5s infinite;">
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: ${color}; box-shadow: 0 0 8px ${color};"></span>
+        <span>${distanceKm.toFixed(1)} km</span>
+        <span style="color: #64748b;">•</span>
+        <span style="color: ${color};">${label}</span>
+      </div>
+    `,
+    iconSize: [230, 28],
+    iconAnchor: [115, 14],
+  });
+}
+
 function LiveWireLayer({
   isConnecting,
   source,
+  sites,
 }: {
   isConnecting: boolean;
   source: Site | null;
+  sites: Site[];
 }) {
   const [mousePos, setMousePos] = useState<[number, number] | null>(null);
 
@@ -161,19 +189,95 @@ function LiveWireLayer({
 
   if (!isConnecting || !source || !mousePos) return null;
 
+  // Snap to candidate target site if cursor is within ~12km
+  const candidateSite = sites.find((s) => {
+    if (s.id === source.id) return false;
+    const d = calculateDistanceKm(mousePos[0], mousePos[1], s.lat, s.lng);
+    return d < 12;
+  });
+
+  const targetCoords: [number, number] = candidateSite
+    ? [candidateSite.lat, candidateSite.lng]
+    : mousePos;
+  const distanceKm = Math.max(
+    0.1,
+    calculateDistanceKm(source.lat, source.lng, targetCoords[0], targetCoords[1])
+  );
+  const freqMHz = source.txFreqMHz || (candidateSite ? candidateSite.txFreqMHz : 400) || 400;
+
+  // Live real DEM Line-of-Sight analysis while wiring
+  const losResult = analyzeLOS({
+    txLat: source.lat,
+    txLng: source.lng,
+    rxLat: targetCoords[0],
+    rxLng: targetCoords[1],
+    txElevationM: source.elevation,
+    rxElevationM: candidateSite?.elevation,
+    txTowerHeightM: source.antennaHeightM || 20,
+    rxTowerHeightM: candidateSite?.antennaHeightM || 20,
+    frequencyMHz: freqMHz,
+    samplePointsCount: 20,
+  });
+
+  const isBlocked =
+    losResult.status === 'OBSTRUCTED' ||
+    (losResult.worstPoint && losResult.worstPoint.clearanceM < 0);
+  const deficitM = Math.abs(losResult.worstPoint?.clearanceM || 0);
+  const wireColor = isBlocked ? '#ef4444' : '#06b6d4';
+
+  const midLat = (source.lat + targetCoords[0]) / 2;
+  const midLng = (source.lng + targetCoords[1]) / 2;
+
   return (
-    <Polyline
-      positions={[
-        [source.lat, source.lng],
-        mousePos,
-      ]}
-      pathOptions={{
-        color: '#06b6d4',
-        weight: 3,
-        dashArray: '6, 6',
-        opacity: 0.85,
-      }}
-    />
+    <>
+      {/* Outer Halo Glow */}
+      <Polyline
+        positions={[
+          [source.lat, source.lng],
+          targetCoords,
+        ]}
+        pathOptions={{
+          color: wireColor,
+          weight: 10,
+          opacity: 0.35,
+        }}
+      />
+
+      {/* Core Dynamic Wire */}
+      <Polyline
+        positions={[
+          [source.lat, source.lng],
+          targetCoords,
+        ]}
+        pathOptions={{
+          color: wireColor,
+          weight: 4,
+          dashArray: isBlocked ? '5, 5' : '8, 8',
+          opacity: 0.95,
+        }}
+      />
+
+      {/* Midpoint Live Terrain Status Badge */}
+      <Marker
+        position={[midLat, midLng]}
+        icon={createLiveWireBadgeIcon(
+          distanceKm,
+          isBlocked,
+          deficitM,
+          candidateSite?.name
+        )}
+        interactive={false}
+      />
+
+      {/* Live Peak Obstacle Marker if blocked */}
+      {isBlocked && losResult.worstPoint && (
+        <Marker
+          position={[losResult.worstPoint.lat, losResult.worstPoint.lng]}
+          icon={createObstructionIcon(deficitM, losResult.worstPoint.distanceKm)}
+          interactive={false}
+        />
+      )}
+    </>
   );
 }
 
@@ -473,7 +577,7 @@ export function Map() {
             )}
 
             {/* Cisco Packet Tracer Live Wire Preview while dragging */}
-            <LiveWireLayer isConnecting={isConnecting} source={connectingSource} />
+            <LiveWireLayer isConnecting={isConnecting} source={connectingSource} sites={sites} />
 
             {/* Site-to-Site RF Links (Packet Tracer Colored & Terrain Blocked Links) */}
             {showLinks &&
@@ -655,35 +759,38 @@ export function Map() {
                   },
                 }}
               >
-                <Popup>
-                  <div className="p-1 font-sans min-w-[170px]">
-                    <div className="font-bold text-sm text-slate-800">{site.name}</div>
-                    <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">
-                      {site.type.replace('-', ' ')}
-                    </div>
-                    <div className="text-xs text-slate-600 space-y-0.5 font-mono">
-                      <div>Elev: {site.elevation}m AMSL</div>
-                      <div>
-                        Coords: {site.lat.toFixed(4)}°, {site.lng.toFixed(4)}°
+                {!isConnecting && (
+                  <Popup>
+                    <div className="p-1 font-sans min-w-[180px]">
+                      <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{site.name}</div>
+                      <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">
+                        {site.type.replace('-', ' ')}
                       </div>
-                      {site.txFreqMHz && <div>TX: {site.txFreqMHz} MHz</div>}
-                    </div>
+                      <div className="text-xs text-slate-600 dark:text-slate-300 space-y-0.5 font-mono">
+                        <div>Elev: {site.elevation}m AMSL</div>
+                        <div>
+                          Coords: {site.lat.toFixed(4)}°, {site.lng.toFixed(4)}°
+                        </div>
+                        {site.txFreqMHz && <div>TX: {site.txFreqMHz} MHz</div>}
+                      </div>
 
-                    {/* Quick Connect Link Action */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsConnecting(true);
-                        setConnectingSource(site);
-                        setConnectToast(`🔌 Source: ${site.name} selected. Now click Target Station.`);
-                      }}
-                      className="w-full mt-2.5 py-1.5 px-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs"
-                    >
-                      <Cable className="w-3.5 h-3.5" />
-                      <span>Connect Link to Another Station</span>
-                    </button>
-                  </div>
-                </Popup>
+                      {/* Quick Connect Link Action */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsConnecting(true);
+                          setConnectingSource(site);
+                          setConnectToast(`🔌 Source: ${site.name} selected. Now click Target Station.`);
+                        }}
+                        className="w-full mt-2.5 py-1.5 px-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer"
+                      >
+                        <Cable className="w-3.5 h-3.5" />
+                        <span>Connect Link (Packet Tracer Wire)</span>
+                      </button>
+                    </div>
+                  </Popup>
+                )}
               </Marker>
             ))}
 

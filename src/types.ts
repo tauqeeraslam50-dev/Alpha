@@ -21,6 +21,8 @@ export interface Site {
   elevation: number;
   type: 'repeater' | 'base-station' | 'subscriber' | 'microwave-node' | 'relay';
   status?: 'online' | 'offline' | 'standby';
+  antennaHeightM?: number;
+  antennaGainDBi?: number;
   radioType?: 'base' | 'vehicular' | 'walkie-talkie' | 'custom';
   equipmentType?: 'VHF' | 'UHF' | 'DMR' | 'SDR' | 'Microwave';
   txPowerW?: number;

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-
 import { 
   Wifi, Target, Activity, Radio, Info, Eye, Layers, Compass, 
   MapPin, Download, ChevronRight, Zap, Shield, Sparkles, Navigation,
-  BarChart2, RefreshCw, Sliders, CheckCircle2, AlertTriangle, XCircle
+  BarChart2, RefreshCw, Sliders, CheckCircle2, AlertTriangle, XCircle,
+  Maximize2
 } from 'lucide-react';
 import { 
   calculateRealisticRange, calculateRadioHorizon, 
@@ -15,10 +15,103 @@ import {
   ReferenceLine, CartesianGrid 
 } from 'recharts';
 import { useAppContext } from '../context/AppContext';
-import { useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, Polygon, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
+// Leaflet default icon fix
+import iconUrl from 'leaflet/dist/images/marker-icon.png';
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
+const DefaultIcon = L.icon({
+  iconUrl,
+  iconRetinaUrl,
+  shadowUrl,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  tooltipAnchor: [16, -28],
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
+// Custom Icons
+function createTxMarkerIcon(color = '#2563eb') {
+  return L.divIcon({
+    className: 'rnms-tx-leaflet-marker',
+    html: `
+      <div style="position: relative; width: 34px; height: 34px; transform: translate(-17px, -17px);">
+        <div style="position: absolute; top: -6px; left: -6px; width: 46px; height: 46px; border-radius: 50%; border: 2.5px solid ${color}; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.65;"></div>
+        <div style="background: ${color}; width: 34px; height: 34px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; color: white;">
+          <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20m0-20l7 7m-7-7L5 9m7 13l7-7m-7 7l-7-7"/>
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -18],
+  });
+}
+
+function createProbeMarkerIcon() {
+  return L.divIcon({
+    className: 'rnms-probe-leaflet-marker',
+    html: `
+      <div style="position: relative; width: 32px; height: 32px; transform: translate(-16px, -16px);">
+        <div style="position: absolute; top: -5px; left: -5px; width: 42px; height: 42px; border-radius: 50%; border: 2px solid #db2777; animation: pulse 1.2s infinite; opacity: 0.85;"></div>
+        <div style="background: #db2777; width: 32px; height: 32px; border-radius: 50%; border: 2.5px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white;">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+  });
+}
+
+// Generate directional radiation polygon
+function generateDirectionalSectorCoords(
+  centerLat: number,
+  centerLng: number,
+  maxRadiusKm: number,
+  azimuth: number,
+  beamwidth: number,
+  f2bRatioDB: number,
+  numPoints = 64
+): [number, number][] {
+  const coords: [number, number][] = [];
+  coords.push([centerLat, centerLng]);
+
+  for (let i = 0; i <= numPoints; i++) {
+    const theta = (i / numPoints) * 360;
+    const angleDiff = Math.abs(((theta - azimuth + 180) % 360) - 180);
+    const normalizedAngle = angleDiff / Math.max(1, beamwidth / 2);
+    const attenDB = Math.min(f2bRatioDB, 12 * Math.pow(normalizedAngle, 2));
+    const scale = Math.max(0.06, Math.pow(10, -attenDB / 28));
+    const r = maxRadiusKm * scale;
+    const pt = calculateDestinationPoint(centerLat, centerLng, r, theta);
+    coords.push([pt.lat, pt.lng]);
+  }
+
+  coords.push([centerLat, centerLng]);
+  return coords;
+}
+
+// Map Event Listener for Click to Move Probe
+function MapClickProbeSetter({ onSetProbe }: { onSetProbe: (pos: { lat: number; lng: number }) => void }) {
+  useMapEvents({
+    click: (e) => {
+      onSetProbe({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+}
 
 // Component to adjust map bounds to fit site
 function MapPanner({ lat, lng }: { lat: number, lng: number }) {
@@ -900,14 +993,321 @@ export function CoveragePrediction() {
         </div>
 
         
-        {/* Map Side Removed */}
-        <div className="w-full h-full bg-slate-50 flex items-center justify-center p-6 text-center">
-          <div>
-            <MapPin className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-slate-600 font-bold text-xl mb-2">GIS Map Disabled</h3>
-            <p className="text-slate-500">Map visualization has been moved to the standalone Offline Map Manager.</p>
-          </div>
-        </div>
+        {/* Interactive GIS Prediction Map */}
+        <MapContainer
+          center={selectedSite ? [selectedSite.lat, selectedSite.lng] : [33.6844, 73.0479]}
+          zoom={10}
+          style={{ width: '100%', height: '100%' }}
+          className="z-0"
+        >
+          <TileLayer
+            key={mapTileStyle}
+            attribution={
+              mapTileStyle === 'satellite'
+                ? '&copy; Esri, Maxar, Earthstar Geographics'
+                : mapTileStyle === 'topo'
+                ? '&copy; OpenTopoMap contributors'
+                : mapTileStyle === 'light'
+                ? '&copy; Google Maps'
+                : mapTileStyle === 'dark'
+                ? '&copy; CARTO'
+                : '&copy; OpenStreetMap contributors'
+            }
+            url={
+              mapTileStyle === 'satellite'
+                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                : mapTileStyle === 'topo'
+                ? 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'
+                : mapTileStyle === 'light'
+                ? 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
+                : mapTileStyle === 'dark'
+                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+            }
+            maxZoom={19}
+          />
+
+          {selectedSite && <MapPanner lat={selectedSite.lat} lng={selectedSite.lng} />}
+          <MapClickProbeSetter onSetProbe={(pos) => setProbeLocation(pos)} />
+
+          {/* OMNI PATTERN COVERAGE RINGS */}
+          {antennaPattern === 'omni' && selectedSite && viewMode !== 'multi-site' && (
+            <>
+              {/* Strong Coverage Area (Green) */}
+              <Circle
+                center={[selectedSite.lat, selectedSite.lng]}
+                radius={radiusStrong * 1000}
+                pathOptions={{
+                  color: '#10b981',
+                  fillColor: '#10b981',
+                  fillOpacity: 0.22,
+                  weight: 2,
+                }}
+              />
+
+              {/* Good Coverage Area (Amber) */}
+              <Circle
+                center={[selectedSite.lat, selectedSite.lng]}
+                radius={radiusGood * 1000}
+                pathOptions={{
+                  color: '#f59e0b',
+                  fillColor: '#f59e0b',
+                  fillOpacity: 0.14,
+                  weight: 2,
+                }}
+              />
+
+              {/* Edge Coverage Limit (Red) */}
+              <Circle
+                center={[selectedSite.lat, selectedSite.lng]}
+                radius={radiusEdge * 1000}
+                pathOptions={{
+                  color: '#ef4444',
+                  fillColor: '#ef4444',
+                  fillOpacity: 0.08,
+                  weight: 1.5,
+                }}
+              />
+
+              {/* Optical / Radio Horizon Circle */}
+              {showHorizon && (
+                <Circle
+                  center={[selectedSite.lat, selectedSite.lng]}
+                  radius={radioHorizon * 1000}
+                  pathOptions={{
+                    color: '#64748b',
+                    fillColor: 'transparent',
+                    dashArray: '6, 8',
+                    weight: 2,
+                  }}
+                />
+              )}
+            </>
+          )}
+
+          {/* DIRECTIONAL SECTOR COVERAGE POLYGONS */}
+          {antennaPattern === 'directional' && selectedSite && viewMode !== 'multi-site' && (
+            <>
+              {/* Max Edge Sector */}
+              {generateDirectionalSectorCoords(
+                selectedSite.lat,
+                selectedSite.lng,
+                radiusEdge,
+                azimuthDeg,
+                beamwidthDeg,
+                frontToBackDB
+              ).length > 0 && (
+                <Polygon
+                  positions={generateDirectionalSectorCoords(
+                    selectedSite.lat,
+                    selectedSite.lng,
+                    radiusEdge,
+                    azimuthDeg,
+                    beamwidthDeg,
+                    frontToBackDB
+                  )}
+                  pathOptions={{
+                    color: '#ef4444',
+                    fillColor: '#ef4444',
+                    fillOpacity: 0.12,
+                    weight: 1.5,
+                  }}
+                />
+              )}
+
+              {/* Good Sector */}
+              {generateDirectionalSectorCoords(
+                selectedSite.lat,
+                selectedSite.lng,
+                radiusGood,
+                azimuthDeg,
+                beamwidthDeg,
+                frontToBackDB
+              ).length > 0 && (
+                <Polygon
+                  positions={generateDirectionalSectorCoords(
+                    selectedSite.lat,
+                    selectedSite.lng,
+                    radiusGood,
+                    azimuthDeg,
+                    beamwidthDeg,
+                    frontToBackDB
+                  )}
+                  pathOptions={{
+                    color: '#f59e0b',
+                    fillColor: '#f59e0b',
+                    fillOpacity: 0.2,
+                    weight: 2,
+                  }}
+                />
+              )}
+
+              {/* Strong Sector */}
+              {generateDirectionalSectorCoords(
+                selectedSite.lat,
+                selectedSite.lng,
+                radiusStrong,
+                azimuthDeg,
+                beamwidthDeg,
+                frontToBackDB
+              ).length > 0 && (
+                <Polygon
+                  positions={generateDirectionalSectorCoords(
+                    selectedSite.lat,
+                    selectedSite.lng,
+                    radiusStrong,
+                    azimuthDeg,
+                    beamwidthDeg,
+                    frontToBackDB
+                  )}
+                  pathOptions={{
+                    color: '#10b981',
+                    fillColor: '#10b981',
+                    fillOpacity: 0.3,
+                    weight: 2,
+                  }}
+                />
+              )}
+
+              {/* Boresight Heading Ray Line */}
+              {(() => {
+                const headPt = calculateDestinationPoint(
+                  selectedSite.lat,
+                  selectedSite.lng,
+                  radiusEdge * 1.1,
+                  azimuthDeg
+                );
+                return (
+                  <Polyline
+                    positions={[
+                      [selectedSite.lat, selectedSite.lng],
+                      [headPt.lat, headPt.lng],
+                    ]}
+                    pathOptions={{
+                      color: '#3b82f6',
+                      weight: 3,
+                      dashArray: '4, 4',
+                    }}
+                  />
+                );
+              })()}
+            </>
+          )}
+
+          {/* MULTI-SITE COVERAGE VIEW */}
+          {viewMode === 'multi-site' &&
+            sites.map((site) => (
+              <React.Fragment key={site.id}>
+                <Circle
+                  center={[site.lat, site.lng]}
+                  radius={radiusGood * 1000}
+                  pathOptions={{
+                    color: site.id === selectedSiteId ? '#2563eb' : '#059669',
+                    fillColor: site.id === selectedSiteId ? '#3b82f6' : '#10b981',
+                    fillOpacity: 0.15,
+                    weight: site.id === selectedSiteId ? 2.5 : 1.5,
+                  }}
+                />
+                <Marker
+                  position={[site.lat, site.lng]}
+                  icon={createTxMarkerIcon(site.id === selectedSiteId ? '#2563eb' : '#059669')}
+                  eventHandlers={{
+                    click: () => setSelectedSiteId(site.id),
+                  }}
+                >
+                  <Popup>
+                    <div className="p-1 font-sans">
+                      <div className="font-bold text-xs">{site.name}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        Elev: {site.elevation}m | TX: {site.txFreqMHz || frequency} MHz
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              </React.Fragment>
+            ))}
+
+          {/* MAIN TRANSMITTER SITE MARKER */}
+          {selectedSite && viewMode !== 'multi-site' && (
+            <Marker
+              position={[selectedSite.lat, selectedSite.lng]}
+              icon={createTxMarkerIcon('#2563eb')}
+            >
+              <Popup>
+                <div className="p-1.5 font-sans min-w-[180px]">
+                  <div className="font-bold text-sm text-slate-900">{selectedSite.name}</div>
+                  <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">
+                    {selectedSite.type.replace('-', ' ')}
+                  </div>
+                  <div className="text-xs text-slate-600 space-y-0.5 font-mono">
+                    <div>Elev: {selectedSite.elevation}m AMSL</div>
+                    <div>Coords: {selectedSite.lat.toFixed(4)}°, {selectedSite.lng.toFixed(4)}°</div>
+                    <div>Tower Mast: {txAntennaHeight}m</div>
+                    <div>TX Power: {txPowerW}W ({txPowerDBm.toFixed(1)} dBm)</div>
+                    <div>Freq: {frequency} MHz</div>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* INTERACTIVE TEST PROBE (FIELD RECEIVER) */}
+          {showProbe && probeLocation && selectedSite && (
+            <>
+              <Marker
+                position={[probeLocation.lat, probeLocation.lng]}
+                icon={createProbeMarkerIcon()}
+                draggable={true}
+                eventHandlers={{
+                  dragend: (e) => {
+                    const ll = e.target.getLatLng();
+                    setProbeLocation({ lat: ll.lat, lng: ll.lng });
+                  },
+                }}
+              >
+                <Popup>
+                  <div className="p-1.5 font-sans min-w-[200px]">
+                    <div className="font-bold text-xs text-pink-600 uppercase">Field Test Receiver</div>
+                    <div className="text-sm font-bold text-slate-800 mb-1">
+                      {probeData ? `${probeData.rssiDBm.toFixed(1)} dBm` : 'Analyzing...'}
+                    </div>
+                    {probeData && (
+                      <div className="text-xs text-slate-600 space-y-0.5 font-mono">
+                        <div>Distance: {probeData.distanceKm.toFixed(2)} km</div>
+                        <div>Bearing: {probeData.bearing.toFixed(1)}°</div>
+                        <div>Path Loss: {probeData.pathLoss.toFixed(1)} dB</div>
+                        <div>Fade Margin: {probeData.marginDB.toFixed(1)} dB</div>
+                        <div
+                          className="font-bold uppercase"
+                          style={{ color: probeData.marginDB > 0 ? '#10b981' : '#ef4444' }}
+                        >
+                          Quality: {probeData.quality}
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-[10px] text-slate-400 mt-1 italic">
+                      Drag marker or click anywhere on map to reposition.
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+
+              {/* Probe Direct Path Ray Line */}
+              <Polyline
+                positions={[
+                  [selectedSite.lat, selectedSite.lng],
+                  [probeLocation.lat, probeLocation.lng],
+                ]}
+                pathOptions={{
+                  color: probeData && probeData.marginDB >= 0 ? '#ec4899' : '#ef4444',
+                  weight: 2.5,
+                  dashArray: '5, 5',
+                  opacity: 0.85,
+                }}
+              />
+            </>
+          )}
+        </MapContainer>
 
       </div>
     </div>

@@ -135,6 +135,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   const mapRef = useRef<MapLibreMap | undefined>(undefined);
   const markersRef = useRef<MapLibreMarker[]>([]);
   const linkMarkersRef = useRef<MapLibreMarker[]>([]);
+  const liveWireMarkersRef = useRef<MapLibreMarker[]>([]);
   const targetMarkerRef = useRef<MapLibreMarker | null>(null);
 
   // File Inputs
@@ -986,25 +987,74 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     onStatus?.('Switched to Embedded Pakistan Offline Map');
   };
 
-  // Cisco Packet Tracer Live Wire Preview while dragging in Offline Map
+  // Cisco Packet Tracer Live Wire Preview while dragging in Offline Map with Real DEM LOS
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    // Clear previous live wire markers
+    liveWireMarkersRef.current.forEach((m) => m.remove());
+    liveWireMarkersRef.current = [];
+
     const wireSourceId = 'rnms-live-wire-offline-source';
+    const wireGlowLayerId = 'rnms-live-wire-offline-glow';
     const wireLayerId = 'rnms-live-wire-offline-line';
+
+    if (!isConnecting || !connectingSource) {
+      if (map.getLayer(wireLayerId)) map.removeLayer(wireLayerId);
+      if (map.getLayer(wireGlowLayerId)) map.removeLayer(wireGlowLayerId);
+      if (map.getSource(wireSourceId)) map.removeSource(wireSourceId);
+      return;
+    }
 
     const onMouseMove = (e: maplibregl.MapMouseEvent) => {
       if (!isConnecting || !connectingSource) return;
 
+      // Snap to candidate target site if mouse is close (~12km)
+      const candidateSite = sites.find((s) => {
+        if (s.id === connectingSource.id) return false;
+        const d = calculateDistanceKm(e.lngLat.lat, e.lngLat.lng, s.lat, s.lng);
+        return d < 12;
+      });
+
+      const targetLng = candidateSite ? candidateSite.lng : e.lngLat.lng;
+      const targetLat = candidateSite ? candidateSite.lat : e.lngLat.lat;
+      const distanceKm = Math.max(
+        0.1,
+        calculateDistanceKm(connectingSource.lat, connectingSource.lng, targetLat, targetLng)
+      );
+      const freqMHz = connectingSource.txFreqMHz || (candidateSite ? candidateSite.txFreqMHz : 400) || 400;
+
+      // Live LOS analysis
+      const losResult = analyzeLOS({
+        txLat: connectingSource.lat,
+        txLng: connectingSource.lng,
+        rxLat: targetLat,
+        rxLng: targetLng,
+        txElevationM: connectingSource.elevation,
+        rxElevationM: candidateSite?.elevation,
+        txTowerHeightM: connectingSource.antennaHeightM || 20,
+        rxTowerHeightM: candidateSite?.antennaHeightM || 20,
+        frequencyMHz: freqMHz,
+        samplePointsCount: 20,
+      });
+
+      const isBlocked =
+        losResult.status === 'OBSTRUCTED' ||
+        (losResult.worstPoint && losResult.worstPoint.clearanceM < 0);
+      const deficitM = Math.abs(losResult.worstPoint?.clearanceM || 0);
+      const wireColor = isBlocked ? '#ef4444' : '#06b6d4';
+
       const data: GeoJSON.Feature<GeoJSON.LineString> = {
         type: 'Feature',
-        properties: {},
+        properties: {
+          color: wireColor,
+        },
         geometry: {
           type: 'LineString',
           coordinates: [
             [connectingSource.lng, connectingSource.lat],
-            [e.lngLat.lng, e.lngLat.lat],
+            [targetLng, targetLat],
           ],
         },
       };
@@ -1018,6 +1068,21 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         });
 
         map.addLayer({
+          id: wireGlowLayerId,
+          type: 'line',
+          source: wireSourceId,
+          layout: {
+            'line-cap': 'round',
+            'line-join': 'round',
+          },
+          paint: {
+            'line-color': ['get', 'color'],
+            'line-width': 8,
+            'line-opacity': 0.35,
+          },
+        });
+
+        map.addLayer({
           id: wireLayerId,
           type: 'line',
           source: wireSourceId,
@@ -1026,12 +1091,57 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             'line-join': 'round',
           },
           paint: {
-            'line-color': '#06b6d4',
-            'line-width': 3,
+            'line-color': ['get', 'color'],
+            'line-width': 3.5,
             'line-dasharray': [2, 2],
-            'line-opacity': 0.85,
+            'line-opacity': 0.95,
           },
         });
+      }
+
+      // Update live wire midpoint badge
+      liveWireMarkersRef.current.forEach((m) => m.remove());
+      liveWireMarkersRef.current = [];
+
+      const midLng = (connectingSource.lng + targetLng) / 2;
+      const midLat = (connectingSource.lat + targetLat) / 2;
+
+      const badgeEl = document.createElement('div');
+      badgeEl.className = 'rnms-live-wire-badge select-none pointer-events-none';
+      const label = isBlocked
+        ? `🔴 BLOCKED (+${deficitM.toFixed(0)}m Peak)`
+        : `🟢 CLEAR LOS ${candidateSite ? `➔ ${candidateSite.name}` : ''}`;
+
+      badgeEl.innerHTML = `
+        <div style="background: rgba(15, 23, 42, 0.96); border: 2px solid ${wireColor}; border-radius: 8px; padding: 3px 9px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 6px; box-shadow: 0 0 16px ${wireColor}80, 0 4px 10px rgba(0,0,0,0.6); backdrop-filter: blur(6px); white-space: nowrap; animation: pulse 1.5s infinite;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: ${wireColor}; box-shadow: 0 0 8px ${wireColor};"></span>
+          <span>${distanceKm.toFixed(1)} km</span>
+          <span style="color: #64748b;">•</span>
+          <span style="color: ${wireColor};">${label}</span>
+        </div>
+      `;
+
+      const midMarker = new maplibregl.Marker({ element: badgeEl, anchor: 'center' })
+        .setLngLat([midLng, midLat])
+        .addTo(map);
+
+      liveWireMarkersRef.current.push(midMarker);
+
+      // Peak obstacle marker if blocked
+      if (isBlocked && losResult.worstPoint) {
+        const obsEl = document.createElement('div');
+        obsEl.className = 'rnms-obstruction-badge select-none pointer-events-none';
+        obsEl.innerHTML = `
+          <div style="background: rgba(220, 38, 38, 0.95); border: 2px solid #ffffff; border-radius: 9999px; padding: 2px 8px; color: #ffffff; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 800; display: flex; align-items: center; gap: 4px; box-shadow: 0 0 16px rgba(239, 68, 68, 0.9); backdrop-filter: blur(4px); animation: pulse 1.5s infinite;">
+            <span>⚠️</span>
+            <span>PEAK BLOCK +${deficitM.toFixed(0)}m</span>
+          </div>
+        `;
+        const obsMarker = new maplibregl.Marker({ element: obsEl, anchor: 'center' })
+          .setLngLat([losResult.worstPoint.lng, losResult.worstPoint.lat])
+          .addTo(map);
+
+        liveWireMarkersRef.current.push(obsMarker);
       }
     };
 
@@ -1039,10 +1149,13 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
     return () => {
       map.off('mousemove', onMouseMove);
+      liveWireMarkersRef.current.forEach((m) => m.remove());
+      liveWireMarkersRef.current = [];
       if (map.getLayer(wireLayerId)) map.removeLayer(wireLayerId);
+      if (map.getLayer(wireGlowLayerId)) map.removeLayer(wireGlowLayerId);
       if (map.getSource(wireSourceId)) map.removeSource(wireSourceId);
     };
-  }, [isConnecting, connectingSource]);
+  }, [isConnecting, connectingSource, sites]);
 
   // Render RF Sites Markers on Offline Map
   useEffect(() => {
@@ -1112,15 +1225,19 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       el.addEventListener('click', (e) => {
         if (isConnecting) {
           e.stopPropagation();
+          popup.remove();
           handleSiteClickForConnection(site);
         }
       });
 
       const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([site.lng, site.lat])
-        .setPopup(popup)
-        .addTo(map);
+        .setLngLat([site.lng, site.lat]);
 
+      if (!isConnecting) {
+        marker.setPopup(popup);
+      }
+
+      marker.addTo(map);
       markersRef.current.push(marker);
     });
   }, [sites, showSites, isConnecting, connectingSource]);
