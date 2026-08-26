@@ -74,15 +74,58 @@ app.whenReady().then(() => {
     try {
       const url = new URL(request.url);
       const root = safeFilePath(url.searchParams.get('root') || '');
-      const z = url.searchParams.get('z'); const x = url.searchParams.get('x'); const y = url.searchParams.get('y');
-      if (!root || !/^\d+$/.test(z || '') || !/^\d+$/.test(x || '') || !/^\d+$/.test(y || '')) return new Response('Bad tile request', { status: 400 });
-      const filePath = path.join(root, z, x, `${y}.png`);
-      return fileResponse(filePath, request, 'image/png');
-    } catch (error) { console.error('local-map:', error); return new Response('Bad local tile request', { status: 500 }); }
+      const z = url.searchParams.get('z');
+      const x = url.searchParams.get('x');
+      const y = url.searchParams.get('y');
+      const layer = url.searchParams.get('layer');
+      if (!root || !/^\d+$/.test(z || '') || !/^\d+$/.test(x || '') || !/^\d+$/.test(y || '')) {
+        return new Response('Bad tile request', { status: 400 });
+      }
+      
+      const candidatePaths = [
+        layer ? path.join(root, layer, z, x, `${y}.png`) : null,
+        layer ? path.join(root, layer, z, x, `${y}.jpg`) : null,
+        layer ? path.join(root, layer, z, x, `${y}.jpeg`) : null,
+        layer ? path.join(root, layer, z, x, `${y}.webp`) : null,
+        path.join(root, z, x, `${y}.png`),
+        path.join(root, z, x, `${y}.jpg`),
+        path.join(root, z, x, `${y}.jpeg`),
+        path.join(root, z, x, `${y}.webp`),
+      ].filter(Boolean);
+
+      for (const p of candidatePaths) {
+        if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+          const ext = path.extname(p).toLowerCase();
+          const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+          return fileResponse(p, request, mime);
+        }
+      }
+      return new Response('Tile not found', { status: 404 });
+    } catch (error) {
+      console.error('local-map:', error);
+      return new Response('Bad local tile request', { status: 500 });
+    }
   });
 
-  ipcMain.handle('offline:select-folder', async () => { const result = await dialog.showOpenDialog(mainWindow, { title: 'Select offline map-data folder', properties: ['openDirectory'] }); return result.canceled ? null : result.filePaths[0]; });
-  ipcMain.handle('offline:select-file', async () => { const result = await dialog.showOpenDialog(mainWindow, { title: 'Select offline PMTiles map', properties: ['openFile'], filters: [{ name: 'Map archives', extensions: ['pmtiles'] }] }); return result.canceled ? null : result.filePaths[0]; });
+  ipcMain.handle('offline:select-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select offline map-data folder (containing PMTiles or PNG tiles)',
+      properties: ['openDirectory']
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('offline:select-file', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select offline PMTiles archive or map file',
+      properties: ['openFile'],
+      filters: [
+        { name: 'PMTiles Map Archives (*.pmtiles)', extensions: ['pmtiles'] },
+        { name: 'All Map Archives (*.pmtiles, *.mbtiles)', extensions: ['pmtiles', 'mbtiles'] },
+        { name: 'All Files (*.*)', extensions: ['*'] }
+      ]
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
   ipcMain.handle('offline:scan-folder', (_event, folder) => scanFolder(folder));
   ipcMain.handle('offline:get-default-folder', () => path.join(app.getPath('userData'), 'maps'));
   createWindow();

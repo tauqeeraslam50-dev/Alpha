@@ -1,36 +1,186 @@
-import { useEffect, useRef, useState } from 'react';
-import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
-import { Protocol, PMTiles } from 'pmtiles';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import maplibregl, { type Map as MapLibreMap, type Marker as MapLibreMarker } from 'maplibre-gl';
+import { Protocol, PMTiles, FileSource, type Header } from 'pmtiles';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import {
+  FolderOpen,
+  Upload,
+  Layers,
+  MapPin,
+  Compass,
+  Ruler,
+  Maximize2,
+  Minimize2,
+  Info,
+  Radio,
+  FileCheck,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Sliders,
+  Sparkles,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
+import { MapSearchBar } from './MapSearchBar';
+import { calculateDistanceKm, calculateBearing } from '../lib/utils';
+import { cn } from '../lib/utils';
+import { Site } from '../types';
 
-const protocol = new Protocol();
-maplibregl.addProtocol('pmtiles', protocol.tile);
+// Register PMTiles Protocol globally
+const pmtilesProtocol = new Protocol();
+maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
+
+// Global in-memory uploaded PNG tiles storage
+const uploadedTileBlobs = new Map<string, Blob>();
+let isCustomPngProtocolRegistered = false;
+
+if (!isCustomPngProtocolRegistered) {
+  maplibregl.addProtocol('uploaded-png', async (params) => {
+    try {
+      const url = new URL(params.url);
+      const z = url.searchParams.get('z');
+      const x = url.searchParams.get('x');
+      const y = url.searchParams.get('y');
+      const layer = url.searchParams.get('layer') || '';
+
+      const keysToTry = [
+        layer ? `${layer}_${z}_${x}_${y}` : '',
+        `${z}_${x}_${y}`,
+        layer ? `${layer}/${z}/${x}/${y}` : '',
+        `${z}/${x}/${y}`,
+      ].filter(Boolean);
+
+      let foundBlob: Blob | undefined;
+      for (const k of keysToTry) {
+        if (uploadedTileBlobs.has(k)) {
+          foundBlob = uploadedTileBlobs.get(k);
+          break;
+        }
+      }
+
+      if (foundBlob) {
+        const buffer = await foundBlob.arrayBuffer();
+        return { data: new Uint8Array(buffer) };
+      }
+
+      // Return 1x1 transparent PNG if tile not found in offline bundle
+      const transparentPixel = new Uint8Array([
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
+        13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+      ]);
+      return { data: transparentPixel };
+    } catch {
+      return { data: new Uint8Array(0) };
+    }
+  });
+  isCustomPngProtocolRegistered = true;
+}
+
 const localUrl = (filePath: string) => `local-pmtiles://${encodeURIComponent(filePath)}`;
 const archiveUrl = (filePath: string) => `pmtiles://local-pmtiles://${encodeURIComponent(filePath)}`;
-const tileTemplate = (folder: string) => `local-map://tile?root=${encodeURIComponent(folder)}&z={z}&x={x}&y={y}`;
-const isRaster = (tileType: number) => [1, 2, 3, 4, 5].includes(tileType);
+const localTileTemplate = (folder: string) =>
+  `local-map://tile?root=${encodeURIComponent(folder)}&z={z}&x={x}&y={y}`;
+const isRasterType = (tileType: number) => [1, 2, 3, 4, 5].includes(tileType);
 
-type OfflineFile = {name:string;path:string;relative:string;size:number;extension:string};
-declare global { interface Window { rnmsOffline?: { selectMapFolder: () => Promise<string | null>; scanMapFolder: (folder: string) => Promise<OfflineFile[]>; selectMapFile: () => Promise<string | null>; getDefaultMapFolder: () => Promise<string>; }; } }
+type OfflineFile = { name: string; path: string; relative: string; size: number; extension: string };
+
+function toDMS(val: number, isLat: boolean): string {
+  const abs = Math.abs(val);
+  const deg = Math.floor(abs);
+  const min = Math.floor((abs - deg) * 60);
+  const sec = ((abs - deg - min / 60) * 3600).toFixed(1);
+  const dir = isLat ? (val >= 0 ? 'N' : 'S') : val >= 0 ? 'E' : 'W';
+  return `${deg}°${min}'${sec}" ${dir}`;
+}
 
 export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => void }) {
+  const { sites, theme } = useAppContext();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | undefined>(undefined);
-  const [filePath, setFilePath] = useState('');
-  const [mapFolder, setMapFolder] = useState('');
-  const [files, setFiles] = useState<OfflineFile[]>([]);
-  const [error, setError] = useState('');
+  const markersRef = useRef<MapLibreMarker[]>([]);
+  const targetMarkerRef = useRef<MapLibreMarker | null>(null);
 
+  // File Inputs
+  const pmtilesInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // State
+  const [filePath, setFilePath] = useState<string>('');
+  const [activeFileSource, setActiveFileSource] = useState<'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'>('none');
+  const [activeFileName, setActiveFileName] = useState<string>('');
+  const [mapFolder, setMapFolder] = useState<string>('');
+  const [files, setFiles] = useState<OfflineFile[]>([]);
+  const [uploadedTileCount, setUploadedTileCount] = useState<number>(0);
+  const [headerInfo, setHeaderInfo] = useState<Header | null>(null);
+  const [error, setError] = useState<string>('');
+  const [rasterOpacity, setRasterOpacity] = useState<number>(1.0);
+
+  // Tool toggles
+  const [showSites, setShowSites] = useState<boolean>(true);
+  const [showCoverageRings, setShowCoverageRings] = useState<boolean>(false);
+  const [coverageRadiusKm, setCoverageRadiusKm] = useState<number>(25);
+  const [isMeasuring, setIsMeasuring] = useState<boolean>(false);
+  const [measurePoints, setMeasurePoints] = useState<[number, number][]>([]);
+  const [mouseCoords, setMouseCoords] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
+  const [showInspector, setShowInspector] = useState<boolean>(false);
+  const [activeSearchPin, setActiveSearchPin] = useState<{ lat: number; lng: number; name: string; category?: string } | null>(null);
+
+  const isElectron = Boolean(window.rnmsOffline?.isElectron || window.rnmsOffline?.selectMapFolder);
+
+  // Initialize MapLibre
   useEffect(() => {
     if (!container.current || mapRef.current) return;
-    const map = new maplibregl.Map({ container: container.current, center: [69.3451, 30.3753], zoom: 4.5, minZoom: 2, maxZoom: 18, style: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dce6ee' } }] }, attributionControl: false });
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
-    map.on('mousemove', e => onStatus?.(`${e.lngLat.lat.toFixed(5)}, ${e.lngLat.lng.toFixed(5)}  |  Zoom ${map.getZoom().toFixed(1)}`));
-    map.on('error', e => { if (e.error?.message) setError(e.error.message); });
+
+    const map = new maplibregl.Map({
+      container: container.current,
+      center: [69.3451, 30.3753],
+      zoom: 5,
+      minZoom: 2,
+      maxZoom: 20,
+      style: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: 'background',
+            type: 'background',
+            paint: {
+              'background-color': theme === 'light' ? '#e2e8f0' : '#0f172a',
+            },
+          },
+        ],
+      },
+      attributionControl: false,
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'bottom-left');
+
+    map.on('mousemove', (e) => {
+      setMouseCoords({
+        lat: e.lngLat.lat,
+        lng: e.lngLat.lng,
+        zoom: map.getZoom(),
+      });
+      onStatus?.(
+        `${e.lngLat.lat.toFixed(5)}° N, ${e.lngLat.lng.toFixed(5)}° E  |  Zoom ${map
+          .getZoom()
+          .toFixed(1)}  |  ${toDMS(e.lngLat.lat, true)}, ${toDMS(e.lngLat.lng, false)}`
+      );
+    });
+
+    map.on('error', (e) => {
+      if (e.error?.message && !e.error.message.includes('404')) {
+        setError(e.error.message);
+      }
+    });
+
     mapRef.current = map;
 
-    // The map stays mounted while Alpha switches modules. ResizeObserver makes
-    // MapLibre recalculate its canvas when the map becomes visible again.
     const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(container.current);
 
@@ -39,83 +189,1062 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       map.remove();
       mapRef.current = undefined;
     };
-  }, [onStatus]);
+  }, [onStatus, theme]);
 
-  const chooseFolder = async () => {
+  // Update Background color on theme change
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    if (map.getLayer('background')) {
+      map.setPaintProperty('background', 'background-color', theme === 'light' ? '#e2e8f0' : '#0f172a');
+    }
+  }, [theme]);
+
+  // Clean and render Vector & Raster PMTiles
+  const applyPMTilesArchive = useCallback(
+    async (sourceUrl: string, pmtilesInstance: PMTiles, labelName: string) => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      setError('');
+      onStatus?.(`Reading ${labelName} metadata…`);
+
+      try {
+        const header = await pmtilesInstance.getHeader();
+        setHeaderInfo(header);
+
+        const sourceId = 'rnms-offline-pmtiles';
+
+        // Clear existing custom layers and source
+        const existingLayers = map.getStyle().layers || [];
+        for (const l of existingLayers) {
+          if (l.id !== 'background' && !l.id.startsWith('measure-') && !l.id.startsWith('coverage-')) {
+            map.removeLayer(l.id);
+          }
+        }
+        if (map.getSource(sourceId)) {
+          map.removeSource(sourceId);
+        }
+
+        const isRaster = isRasterType(header.tileType);
+
+        if (isRaster) {
+          map.addSource(sourceId, {
+            type: 'raster',
+            url: sourceUrl,
+            tileSize: 256,
+          });
+          map.addLayer({
+            id: 'rnms-offline-raster',
+            type: 'raster',
+            source: sourceId,
+            paint: {
+              'raster-opacity': rasterOpacity,
+            },
+          });
+        } else {
+          // Vector PMTiles
+          map.addSource(sourceId, {
+            type: 'vector',
+            url: sourceUrl,
+          });
+
+          const metadata: any = await pmtilesInstance.getMetadata();
+          const vectorLayers: Array<{ id: string }> = Array.isArray(metadata?.vector_layers)
+            ? metadata.vector_layers
+            : [];
+
+          // Intelligent layer grouping for vector styles
+          const colorPalette = [
+            '#3b82f6',
+            '#10b981',
+            '#8b5cf6',
+            '#f59e0b',
+            '#06b6d4',
+            '#64748b',
+          ];
+
+          vectorLayers.forEach((layer, i) => {
+            const cleanId = String(layer.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+            const lIdLower = layer.id.toLowerCase();
+
+            // Water
+            if (lIdLower.includes('water')) {
+              map.addLayer({
+                id: `rnms-fill-${cleanId}`,
+                type: 'fill',
+                source: sourceId,
+                'source-layer': layer.id,
+                paint: { 'fill-color': '#60a5fa', 'fill-opacity': 0.45 },
+              });
+              map.addLayer({
+                id: `rnms-line-${cleanId}`,
+                type: 'line',
+                source: sourceId,
+                'source-layer': layer.id,
+                paint: { 'line-color': '#2563eb', 'line-width': 1.2 },
+              });
+            }
+            // Landcover / Greenery / Parks
+            else if (lIdLower.includes('land') || lIdLower.includes('park') || lIdLower.includes('green')) {
+              map.addLayer({
+                id: `rnms-fill-${cleanId}`,
+                type: 'fill',
+                source: sourceId,
+                'source-layer': layer.id,
+                paint: { 'fill-color': '#34d399', 'fill-opacity': 0.2 },
+              });
+            }
+            // Roads / Highways / Transportation
+            else if (lIdLower.includes('road') || lIdLower.includes('transport') || lIdLower.includes('highway')) {
+              map.addLayer({
+                id: `rnms-line-${cleanId}`,
+                type: 'line',
+                source: sourceId,
+                'source-layer': layer.id,
+                paint: {
+                  'line-color': theme === 'light' ? '#475569' : '#94a3b8',
+                  'line-width': lIdLower.includes('motorway') || lIdLower.includes('primary') ? 2 : 1,
+                },
+              });
+            }
+            // Buildings
+            else if (lIdLower.includes('building') || lIdLower.includes('structure')) {
+              map.addLayer({
+                id: `rnms-fill-${cleanId}`,
+                type: 'fill',
+                source: sourceId,
+                'source-layer': layer.id,
+                paint: { 'fill-color': '#94a3b8', 'fill-opacity': 0.35 },
+              });
+            }
+            // Generic polygon/line fallback
+            else {
+              const color = colorPalette[i % colorPalette.length];
+              map.addLayer({
+                id: `rnms-fill-${cleanId}`,
+                type: 'fill',
+                source: sourceId,
+                'source-layer': layer.id,
+                paint: { 'fill-color': color, 'fill-opacity': 0.25 },
+              });
+              map.addLayer({
+                id: `rnms-line-${cleanId}`,
+                type: 'line',
+                source: sourceId,
+                'source-layer': layer.id,
+                paint: { 'line-color': color, 'line-width': 1 },
+              });
+            }
+          });
+        }
+
+        // Fit Bounds
+        if (header.minLon && header.maxLon && (header.minLon !== header.maxLon)) {
+          const bounds: [[number, number], [number, number]] = [
+            [header.minLon, header.minLat],
+            [header.maxLon, header.maxLat],
+          ];
+          map.fitBounds(bounds, { padding: 40, duration: 600, maxZoom: Math.min(header.maxZoom, 14) });
+        }
+
+        setActiveFileName(labelName);
+        onStatus?.(
+          `Loaded ${isRaster ? 'Raster' : 'Vector'} PMTiles "${labelName}" · Z${header.minZoom}–Z${header.maxZoom}`
+        );
+      } catch (err: any) {
+        console.error('Error applying PMTiles:', err);
+        setError(`Failed to read PMTiles archive: ${err.message || String(err)}`);
+        onStatus?.('Error opening PMTiles archive');
+      }
+    },
+    [onStatus, rasterOpacity, theme]
+  );
+
+  // Load Electron PMTiles file
+  useEffect(() => {
+    if (activeFileSource !== 'electron-file' || !filePath) return;
+    const pmtiles = new PMTiles(localUrl(filePath));
+    void applyPMTilesArchive(archiveUrl(filePath), pmtiles, filePath.split(/[\\/]/).pop() || 'PMTiles Archive');
+  }, [activeFileSource, filePath, applyPMTilesArchive]);
+
+  // Load Electron Folder PNG tiles
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || activeFileSource !== 'electron-folder' || !mapFolder) return;
+
+    // Clear existing
+    const existingLayers = map.getStyle().layers || [];
+    for (const l of existingLayers) {
+      if (l.id !== 'background' && !l.id.startsWith('measure-') && !l.id.startsWith('coverage-')) {
+        map.removeLayer(l.id);
+      }
+    }
+    const sourceId = 'rnms-offline-png';
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    map.addSource(sourceId, {
+      type: 'raster',
+      tiles: [localTileTemplate(mapFolder)],
+      tileSize: 256,
+      minzoom: 0,
+      maxzoom: 22,
+    });
+    map.addLayer({
+      id: 'rnms-offline-png-layer',
+      type: 'raster',
+      source: sourceId,
+      paint: { 'raster-opacity': rasterOpacity },
+    });
+
+    onStatus?.(`Connected to local tile folder: ${mapFolder}`);
+  }, [activeFileSource, mapFolder, onStatus, rasterOpacity]);
+
+  // Load Web Uploaded PNG tiles
+  const applyWebUploadedTiles = useCallback(
+    (count: number, folderLabel: string) => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      const existingLayers = map.getStyle().layers || [];
+      for (const l of existingLayers) {
+        if (l.id !== 'background' && !l.id.startsWith('measure-') && !l.id.startsWith('coverage-')) {
+          map.removeLayer(l.id);
+        }
+      }
+      const sourceId = 'rnms-web-png-source';
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+      map.addSource(sourceId, {
+        type: 'raster',
+        tiles: ['uploaded-png://tile?z={z}&x={x}&y={y}'],
+        tileSize: 256,
+        minzoom: 0,
+        maxzoom: 22,
+      });
+      map.addLayer({
+        id: 'rnms-web-png-layer',
+        type: 'raster',
+        source: sourceId,
+        paint: { 'raster-opacity': rasterOpacity },
+      });
+
+      setActiveFileSource('web-folder');
+      setActiveFileName(folderLabel);
+      setUploadedTileCount(count);
+      onStatus?.(`Loaded ${count.toLocaleString()} uploaded PNG map tiles`);
+    },
+    [onStatus, rasterOpacity]
+  );
+
+  // Manual File Upload Handlers (PMTiles & PNG Directory)
+  const handlePMTilesFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileSource = new FileSource(file);
+    const pmtiles = new PMTiles(fileSource);
+    pmtilesProtocol.add(pmtiles);
+    const sourceUrl = `pmtiles://${fileSource.getKey()}`;
+
+    setActiveFileSource('web-file');
+    void applyPMTilesArchive(sourceUrl, pmtiles, file.name);
+    // Reset input
+    e.target.value = '';
+  };
+
+  const handleFolderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    let tileCount = 0;
+    const reg = /(?:^|\/|\\)(?:([a-zA-Z0-9_-]+)\/)?(\d+)\/(\d+)\/(\d+)\.(png|jpg|jpeg|webp)$/i;
+
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const relPath = file.webkitRelativePath || file.name;
+      const match = relPath.match(reg);
+      if (match) {
+        const layer = match[1] || '';
+        const z = match[2];
+        const x = match[3];
+        const y = match[4];
+
+        if (layer) uploadedTileBlobs.set(`${layer}_${z}_${x}_${y}`, file);
+        uploadedTileBlobs.set(`${z}_${x}_${y}`, file);
+        tileCount++;
+      }
+    }
+
+    if (tileCount === 0) {
+      setError('No standard tiles found. Expected structure like: z/x/y.png (e.g. 10/583/392.png)');
+      return;
+    }
+
+    applyWebUploadedTiles(tileCount, `${fileList[0].webkitRelativePath?.split('/')[0] || 'Uploaded Tiles'} (${tileCount} tiles)`);
+    e.target.value = '';
+  };
+
+  // Drag & Drop Handler
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+
+    const fileList = Array.from(e.dataTransfer.files) as File[];
+    if (fileList.length === 0) return;
+
+    // Check if PMTiles file
+    const pmtilesFile = fileList.find((f) => f.name.toLowerCase().endsWith('.pmtiles'));
+    if (pmtilesFile) {
+      const fileSource = new FileSource(pmtilesFile);
+      const pmtiles = new PMTiles(fileSource);
+      pmtilesProtocol.add(pmtiles);
+      const sourceUrl = `pmtiles://${fileSource.getKey()}`;
+      setActiveFileSource('web-file');
+      void applyPMTilesArchive(sourceUrl, pmtiles, pmtilesFile.name);
+      return;
+    }
+
+    // Check if PNG tile batch
+    let tileCount = 0;
+    const reg = /(?:^|\/|\\)(?:([a-zA-Z0-9_-]+)\/)?(\d+)\/(\d+)\/(\d+)\.(png|jpg|jpeg|webp)$/i;
+
+    fileList.forEach((file) => {
+      const match = (file.webkitRelativePath || file.name).match(reg);
+      if (match) {
+        const layer = match[1] || '';
+        const z = match[2];
+        const x = match[3];
+        const y = match[4];
+        if (layer) uploadedTileBlobs.set(`${layer}_${z}_${x}_${y}`, file);
+        uploadedTileBlobs.set(`${z}_${x}_${y}`, file);
+        tileCount++;
+      }
+    });
+
+    if (tileCount > 0) {
+      applyWebUploadedTiles(tileCount, `Dropped Tile Bundle (${tileCount} tiles)`);
+    } else {
+      setError('Dropped item was neither a .pmtiles archive nor a standard z/x/y.png tile set.');
+    }
+  };
+
+  // Electron Dialogs
+  const handleElectronChooseFolder = async () => {
     try {
       const folder = await window.rnmsOffline?.selectMapFolder();
       if (!folder) return;
       setMapFolder(folder);
       const result = await window.rnmsOffline?.scanMapFolder(folder);
       const all = result ?? [];
-      const pmtiles = all.filter(f => f.extension === '.pmtiles');
-      const pngs = all.filter(f => f.extension === '.png');
+      const pmtiles = all.filter((f) => f.extension === '.pmtiles');
+      const pngs = all.filter((f) => f.extension === '.png' || f.extension === '.jpg' || f.extension === '.webp');
       setFiles(pmtiles);
-      if (pmtiles.length) setFilePath(pmtiles[0].path);
-      onStatus?.(`${pmtiles.length} PMTiles archive(s) • ${pngs.length.toLocaleString()} PNG tile(s) found`);
-    } catch (e: any) { setError(e?.message || String(e)); }
+
+      if (pmtiles.length) {
+        setFilePath(pmtiles[0].path);
+        setActiveFileSource('electron-file');
+      } else if (pngs.length) {
+        setActiveFileSource('electron-folder');
+      }
+      onStatus?.(
+        `${pmtiles.length} PMTiles archive(s) • ${pngs.length.toLocaleString()} raster tile(s) found in selected directory`
+      );
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    }
   };
 
-  const chooseFile = async () => {
-    try { const selected = await window.rnmsOffline?.selectMapFile(); if (selected) setFilePath(selected); }
-    catch (e: any) { setError(e?.message || String(e)); }
-  };
-
-  useEffect(() => {
-    const map = mapRef.current; if (!map || !filePath) return; let cancelled = false;
-    const load = async () => {
-      setError(''); onStatus?.('Reading offline PMTiles metadata…');
-      try {
-        const archive = new PMTiles(localUrl(filePath)); const header = await archive.getHeader(); if (cancelled) return;
-        const sourceId = 'rnms-offline-pmtiles';
-        for (const layer of [...map.getStyle().layers]) if (layer.id !== 'background') map.removeLayer(layer.id);
-        if (map.getSource(sourceId)) map.removeSource(sourceId);
-        const bounds: [[number,number],[number,number]] = [[header.minLon, header.minLat], [header.maxLon, header.maxLat]];
-        if (isRaster(header.tileType)) {
-          map.addSource(sourceId, { type: 'raster', url: archiveUrl(filePath), tileSize: 256 });
-          map.addLayer({ id: 'rnms-offline-raster', type: 'raster', source: sourceId });
-        } else {
-          const metadata: any = await archive.getMetadata(); map.addSource(sourceId, { type: 'vector', url: archiveUrl(filePath) });
-          const layers = Array.isArray(metadata?.vector_layers) ? metadata.vector_layers : [];
-          layers.forEach((layer: any, i: number) => { const id = String(layer.id).replace(/[^a-zA-Z0-9_-]/g, '_'); map.addLayer({ id: `rnms-fill-${id}`, type: 'fill', source: sourceId, 'source-layer': layer.id, paint: { 'fill-color': i % 2 ? '#c6d4df' : '#9fb4c4', 'fill-opacity': 0.35 } }); map.addLayer({ id: `rnms-line-${id}`, type: 'line', source: sourceId, 'source-layer': layer.id, paint: { 'line-color': '#526b7b', 'line-width': 1 } }); });
-        }
-        map.fitBounds(bounds, { padding: 50, duration: 500, maxZoom: Math.max(5, Math.min(header.maxZoom, 10)) });
-        onStatus?.(`Loaded ${isRaster(header.tileType) ? 'raster' : 'vector'} PMTiles · Z${header.minZoom}–Z${header.maxZoom}`);
-      } catch (e: any) { setError(e?.message || String(e)); onStatus?.('Unable to open offline PMTiles'); }
-    };
-    void load(); return () => { cancelled = true; };
-  }, [filePath, onStatus]);
-
-  useEffect(() => {
-    const map = mapRef.current; if (!map || !mapFolder || filePath) return;
-    for (const layer of [...map.getStyle().layers]) if (layer.id !== 'background') map.removeLayer(layer.id);
-    const sourceId = 'rnms-offline-png';
-    if (map.getSource(sourceId)) map.removeSource(sourceId);
-    map.addSource(sourceId, { type: 'raster', tiles: [tileTemplate(mapFolder)], tileSize: 256, minzoom: 0, maxzoom: 22 });
-    map.addLayer({ id: 'rnms-offline-png', type: 'raster', source: sourceId });
-    onStatus?.('PNG tile folder ready');
-  }, [mapFolder, filePath, onStatus]);
-
-  const openPngFolder = async () => {
+  const handleElectronChooseFile = async () => {
     try {
-      const folder = await window.rnmsOffline?.selectMapFolder();
-      if (!folder) return;
-      setFilePath(''); setMapFolder(folder);
-      const result = await window.rnmsOffline?.scanMapFolder(folder);
-      const pngs = (result ?? []).filter(f => f.extension === '.png');
-      onStatus?.(`${pngs.length.toLocaleString()} PNG tile(s) found`);
-      if (!pngs.length) setError('No PNG tiles found in the selected folder. Expected z/x/y.png structure.');
-    } catch (e: any) { setError(e?.message || String(e)); }
+      const selected = await window.rnmsOffline?.selectMapFile();
+      if (selected) {
+        setFilePath(selected);
+        setActiveFileSource('electron-file');
+      }
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    }
   };
 
-  return <div className="relative w-full h-full overflow-hidden rounded-xl">
-    <div ref={container} className="w-full h-full" />
-    <div className="absolute top-3 left-3 z-20 flex gap-2 bg-white/95 p-2 rounded-lg shadow border border-slate-200">
-      <button onClick={chooseFolder} className="px-3 py-1.5 text-xs font-bold rounded bg-emerald-600 text-white">Open Map Folder</button>
-      <button onClick={chooseFile} className="px-3 py-1.5 text-xs font-bold rounded bg-blue-600 text-white">Open PMTiles</button>
-      <button onClick={openPngFolder} className="px-3 py-1.5 text-xs font-bold rounded bg-slate-700 text-white">Open PNG Tiles</button>
-      {files.length > 1 && <select value={filePath} onChange={e => setFilePath(e.target.value)} className="text-xs border rounded px-2">{files.map(f => <option key={f.path} value={f.path}>{f.relative}</option>)}</select>}
+  // Render RF Sites Markers on Offline Map
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Clear existing markers
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    if (!showSites) return;
+
+    sites.forEach((site) => {
+      const el = document.createElement('div');
+      el.className = 'rnms-site-marker cursor-pointer transition-transform hover:scale-110';
+
+      const typeColors: Record<string, string> = {
+        repeater: '#10b981', // green
+        'base-station': '#2563eb', // blue
+        subscriber: '#f59e0b', // amber
+        'microwave-node': '#8b5cf6', // purple
+        relay: '#06b6d4', // cyan
+      };
+
+      const color = typeColors[site.type] || '#3b82f6';
+
+      el.innerHTML = `
+        <div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+          <svg style="width: 14px; height: 14px; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20m0-20l7 7m-7-7L5 9m7 13l7-7m-7 7l-7-7"/>
+          </svg>
+        </div>
+      `;
+
+      const popupHtml = `
+        <div style="font-family: system-ui, sans-serif; min-width: 180px; padding: 4px;">
+          <div style="font-weight: 700; font-size: 13px; color: #0f172a; margin-bottom: 2px;">${site.name}</div>
+          <div style="font-size: 10px; font-weight: 700; color: ${color}; text-transform: uppercase; margin-bottom: 6px;">${site.type.replace('-', ' ')}</div>
+          <div style="font-size: 11px; color: #475569; display: flex; flex-direction: column; gap: 2px;">
+            <div><b>Elevation:</b> ${site.elevation}m AMSL</div>
+            <div><b>Coords:</b> ${site.lat.toFixed(4)}°, ${site.lng.toFixed(4)}°</div>
+            ${site.txFreqMHz ? `<div><b>TX Freq:</b> ${site.txFreqMHz} MHz</div>` : ''}
+            ${site.equipmentType ? `<div><b>Equipment:</b> ${site.equipmentType}</div>` : ''}
+          </div>
+        </div>
+      `;
+
+      const popup = new maplibregl.Popup({ offset: 16, closeButton: false }).setHTML(popupHtml);
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([site.lng, site.lat])
+        .setPopup(popup)
+        .addTo(map);
+
+      markersRef.current.push(marker);
+    });
+  }, [sites, showSites]);
+
+  // Render Coverage Rings
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const sourceId = 'coverage-rings-source';
+    const layerId = 'coverage-rings-layer';
+    const lineLayerId = 'coverage-rings-line';
+
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+    if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    if (!showCoverageRings || sites.length === 0) return;
+
+    // Create GeoJSON circles around sites
+    const features = sites.map((site) => {
+      const points = 64;
+      const coords: [number, number][] = [];
+      const distanceKm = coverageRadiusKm;
+      const radiusLat = distanceKm / 111.32;
+      const radiusLng = distanceKm / (111.32 * Math.cos((site.lat * Math.PI) / 180));
+
+      for (let i = 0; i <= points; i++) {
+        const theta = (i / points) * (2 * Math.PI);
+        const lng = site.lng + radiusLng * Math.cos(theta);
+        const lat = site.lat + radiusLat * Math.sin(theta);
+        coords.push([lng, lat]);
+      }
+
+      return {
+        type: 'Feature' as const,
+        properties: { name: site.name, radius: distanceKm },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [coords],
+        },
+      };
+    });
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features,
+      },
+    });
+
+    map.addLayer({
+      id: layerId,
+      type: 'fill',
+      source: sourceId,
+      paint: {
+        'fill-color': '#3b82f6',
+        'fill-opacity': 0.15,
+      },
+    });
+
+    map.addLayer({
+      id: lineLayerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': '#2563eb',
+        'line-width': 1.5,
+        'line-dasharray': [3, 2],
+      },
+    });
+  }, [showCoverageRings, coverageRadiusKm, sites]);
+
+  // Measurement Tool Click Handler
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      if (!isMeasuring) return;
+      const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      setMeasurePoints((prev) => {
+        if (prev.length >= 2) return [pt];
+        return [...prev, pt];
+      });
+    };
+
+    map.on('click', handleClick);
+    return () => {
+      map.off('click', handleClick);
+    };
+  }, [isMeasuring]);
+
+  // Render Measurement Line
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const sourceId = 'measure-line-source';
+    const lineLayerId = 'measure-line-layer';
+    const pointsLayerId = 'measure-points-layer';
+
+    if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+    if (map.getLayer(pointsLayerId)) map.removeLayer(pointsLayerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    if (measurePoints.length === 0) return;
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: measurePoints,
+            },
+          },
+          ...measurePoints.map((pt, i) => ({
+            type: 'Feature' as const,
+            properties: { label: i === 0 ? 'Start' : 'End' },
+            geometry: { type: 'Point' as const, coordinates: pt },
+          })),
+        ],
+      },
+    });
+
+    map.addLayer({
+      id: lineLayerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': '#ec4899',
+        'line-width': 3,
+        'line-dasharray': [2, 1],
+      },
+    });
+
+    map.addLayer({
+      id: pointsLayerId,
+      type: 'circle',
+      source: sourceId,
+      filter: ['==', '$type', 'Point'],
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#ec4899',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+      },
+    });
+  }, [measurePoints]);
+
+  // Calculate measurement stats
+  const measurementStats = useMemo(() => {
+    if (measurePoints.length < 2) return null;
+    const [p1, p2] = measurePoints;
+    const distKm = calculateDistanceKm(p1[1], p1[0], p2[1], p2[0]);
+    const bearing = calculateBearing(p1[1], p1[0], p2[1], p2[0]);
+    return {
+      distanceKm: distKm,
+      distanceMi: distKm * 0.621371,
+      bearingDeg: bearing,
+    };
+  }, [measurePoints]);
+
+  // Handle Search Result Pin
+  const handleSelectSearchLocation = (loc: {
+    lat: number;
+    lng: number;
+    zoom?: number;
+    name: string;
+    category?: string;
+  }) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    setActiveSearchPin(loc);
+
+    map.flyTo({
+      center: [loc.lng, loc.lat],
+      zoom: loc.zoom || 12,
+      duration: 1200,
+      essential: true,
+    });
+
+    if (targetMarkerRef.current) {
+      targetMarkerRef.current.remove();
+      targetMarkerRef.current = null;
+    }
+
+    const pinEl = document.createElement('div');
+    pinEl.className = 'rnms-search-pin animate-bounce';
+    pinEl.innerHTML = `
+      <div style="background-color: #ef4444; width: 32px; height: 32px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; border: 2.5px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.4);">
+        <div style="transform: rotate(45deg); width: 8px; height: 8px; background: white; border-radius: 50%;"></div>
+      </div>
+    `;
+
+    const popup = new maplibregl.Popup({ offset: 20 })
+      .setHTML(`
+        <div style="font-family: system-ui, sans-serif; padding: 4px;">
+          <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${loc.name}</div>
+          <div style="font-size: 10px; font-weight: 700; color: #ef4444; text-transform: uppercase; margin-bottom: 6px;">${loc.category || 'Target'}</div>
+          <div style="font-size: 11px; color: #475569; font-family: monospace;">
+            ${loc.lat.toFixed(5)}°, ${loc.lng.toFixed(5)}°
+          </div>
+        </div>
+      `);
+
+    const marker = new maplibregl.Marker({ element: pinEl })
+      .setLngLat([loc.lng, loc.lat])
+      .setPopup(popup)
+      .addTo(map);
+
+    targetMarkerRef.current = marker;
+    marker.togglePopup();
+  };
+
+  const handleClearPin = () => {
+    setActiveSearchPin(null);
+    if (targetMarkerRef.current) {
+      targetMarkerRef.current.remove();
+      targetMarkerRef.current = null;
+    }
+  };
+
+  const handleFitBounds = () => {
+    const map = mapRef.current;
+    if (!map || !headerInfo) return;
+    if (headerInfo.minLon && headerInfo.maxLon) {
+      map.fitBounds(
+        [
+          [headerInfo.minLon, headerInfo.minLat],
+          [headerInfo.maxLon, headerInfo.maxLat],
+        ],
+        { padding: 40, duration: 600 }
+      );
+    }
+  };
+
+  return (
+    <div
+      className="relative w-full h-full overflow-hidden rounded-xl bg-slate-900 select-none flex flex-col"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Hidden File Inputs for Manual Upload */}
+      <input
+        ref={pmtilesInputRef}
+        type="file"
+        accept=".pmtiles"
+        onChange={handlePMTilesFileUpload}
+        className="hidden"
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        // @ts-ignore
+        webkitdirectory="true"
+        directory="true"
+        multiple
+        onChange={handleFolderUpload}
+        className="hidden"
+      />
+
+      {/* Top Floating Control Bar */}
+      <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        {/* Search Bar */}
+        <div className="pointer-events-auto w-full max-w-sm sm:max-w-md">
+          <MapSearchBar
+            isOnline={false}
+            hasActivePin={Boolean(activeSearchPin)}
+            onSelectLocation={handleSelectSearchLocation}
+            onClearPin={handleClearPin}
+            placeholder="Search Pakistan cities, bases, sites, coordinates..."
+          />
+        </div>
+
+        {/* Offline Upload & Layer Controls */}
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs">
+          {/* Upload PMTiles Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (isElectron) handleElectronChooseFile();
+              else pmtilesInputRef.current?.click();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition"
+            title="Upload or Open PMTiles (.pmtiles)"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload PMTiles</span>
+          </button>
+
+          {/* Upload PNG Tiles Folder Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (isElectron) handleElectronChooseFolder();
+              else folderInputRef.current?.click();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
+            title="Upload or Open PNG Tiles Folder (z/x/y.png)"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>Upload PNG Folder</span>
+          </button>
+
+          {/* Quick PMTiles File Switcher (if multiple exist) */}
+          {files.length > 1 && (
+            <select
+              value={filePath}
+              onChange={(e) => {
+                setFilePath(e.target.value);
+                setActiveFileSource('electron-file');
+              }}
+              className="text-xs border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 font-semibold"
+            >
+              {files.map((f) => (
+                <option key={f.path} value={f.path}>
+                  {f.relative}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Toggle Sites Overlay */}
+          <button
+            type="button"
+            onClick={() => setShowSites(!showSites)}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1.5 font-semibold rounded-lg border transition',
+              showSites
+                ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/60 dark:border-blue-800 dark:text-blue-300'
+                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            )}
+            title="Toggle RF Sites overlay"
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sites ({sites.length})</span>
+          </button>
+
+          {/* Toggle Coverage Rings */}
+          <button
+            type="button"
+            onClick={() => setShowCoverageRings(!showCoverageRings)}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1.5 font-semibold rounded-lg border transition',
+              showCoverageRings
+                ? 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-950/60 dark:border-purple-800 dark:text-purple-300'
+                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            )}
+            title="Toggle Coverage Range Rings"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Rings</span>
+          </button>
+
+          {/* Distance Measurement Tool */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMeasuring(!isMeasuring);
+              if (isMeasuring) setMeasurePoints([]);
+            }}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1.5 font-semibold rounded-lg border transition',
+              isMeasuring
+                ? 'bg-pink-600 border-pink-700 text-white'
+                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            )}
+            title="Measure distance and azimuth bearing"
+          >
+            <Ruler className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{isMeasuring ? 'Measuring...' : 'Measure'}</span>
+          </button>
+
+          {/* Header Info / Inspector Toggle */}
+          {headerInfo && (
+            <button
+              type="button"
+              onClick={() => setShowInspector(!showInspector)}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title="Inspect PMTiles archive metadata"
+            >
+              <Info className="w-4 h-4 text-blue-500" />
+            </button>
+          )}
+
+          {/* Fit Bounds Button */}
+          {headerInfo && (
+            <button
+              type="button"
+              onClick={handleFitBounds}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title="Fit map to archive bounds"
+            >
+              <Maximize2 className="w-4 h-4 text-emerald-500" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* MapLibre Canvas Container */}
+      <div ref={container} className="w-full h-full flex-1" />
+
+      {/* Drag & Drop Visual Prompt Overlay */}
+      {isDraggingOver && (
+        <div className="absolute inset-0 z-50 bg-blue-950/80 backdrop-blur-sm border-4 border-dashed border-blue-400 rounded-xl flex flex-col items-center justify-center text-white animate-in fade-in">
+          <Upload className="w-16 h-16 text-blue-400 mb-3 animate-bounce" />
+          <h3 className="text-xl font-bold">Drop Offline Map Files Here</h3>
+          <p className="text-sm text-blue-200 mt-1">
+            Accepts <b>.pmtiles</b> archives (Vector/Raster) or <b>z/x/y.png</b> map tile bundles
+          </p>
+        </div>
+      )}
+
+      {/* Measurement HUD */}
+      {isMeasuring && (
+        <div className="absolute top-16 left-3 z-20 bg-slate-900/90 text-white border border-pink-500/50 rounded-xl p-3 shadow-xl backdrop-blur-md max-w-xs animate-in fade-in">
+          <div className="flex items-center justify-between font-bold text-xs text-pink-400 mb-1.5">
+            <span className="flex items-center gap-1.5">
+              <Ruler className="w-4 h-4" /> Distance & Azimuth Tool
+            </span>
+            <button
+              type="button"
+              onClick={() => setMeasurePoints([])}
+              className="text-[10px] text-slate-400 hover:text-white"
+            >
+              Reset
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-300 mb-2">
+            {measurePoints.length === 0 && 'Click map to place starting point (TX)'}
+            {measurePoints.length === 1 && 'Click second point on map to measure distance (RX)'}
+            {measurePoints.length >= 2 && 'Measurement complete. Click again to start new line.'}
+          </p>
+
+          {measurementStats && (
+            <div className="grid grid-cols-2 gap-2 text-center font-mono">
+              <div className="p-2 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="text-[9px] text-slate-400 uppercase">Geodesic Distance</div>
+                <div className="text-sm font-bold text-pink-400">
+                  {measurementStats.distanceKm.toFixed(2)} km
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  ({measurementStats.distanceMi.toFixed(2)} mi)
+                </div>
+              </div>
+              <div className="p-2 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="text-[9px] text-slate-400 uppercase">Bearing Angle</div>
+                <div className="text-sm font-bold text-emerald-400">
+                  {measurementStats.bearingDeg.toFixed(1)}°
+                </div>
+                <div className="text-[10px] text-slate-400">Azimuth</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Coverage Rings Radius Slider (when rings are active) */}
+      {showCoverageRings && (
+        <div className="absolute top-16 right-3 z-20 bg-white/90 dark:bg-slate-900/90 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-lg backdrop-blur-md w-56 animate-in fade-in">
+          <div className="flex justify-between items-center text-xs font-bold mb-1">
+            <span>Coverage Radius</span>
+            <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">
+              {coverageRadiusKm} km
+            </span>
+          </div>
+          <input
+            type="range"
+            min="5"
+            max="150"
+            step="5"
+            value={coverageRadiusKm}
+            onChange={(e) => setCoverageRadiusKm(Number(e.target.value))}
+            className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+          />
+          <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+            <span>5 km</span>
+            <span>50 km</span>
+            <span>150 km</span>
+          </div>
+        </div>
+      )}
+
+      {/* PMTiles Inspector Drawer */}
+      {showInspector && headerInfo && (
+        <div className="absolute bottom-12 right-3 z-20 bg-slate-900/95 text-white border border-slate-700 rounded-xl p-3 shadow-2xl backdrop-blur-md max-w-sm text-xs space-y-2 animate-in fade-in">
+          <div className="flex items-center justify-between font-bold border-b border-slate-800 pb-1.5">
+            <span className="flex items-center gap-1.5 text-blue-400">
+              <FileCheck className="w-4 h-4" /> PMTiles Archive Specs
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowInspector(false)}
+              className="text-slate-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
+            <div className="p-1.5 bg-slate-800/80 rounded">
+              <span className="text-slate-400 block text-[9px]">FILE NAME</span>
+              <span className="font-bold truncate block">{activeFileName || 'archive.pmtiles'}</span>
+            </div>
+            <div className="p-1.5 bg-slate-800/80 rounded">
+              <span className="text-slate-400 block text-[9px]">TILE TYPE</span>
+              <span className="font-bold text-emerald-400">
+                {isRasterType(headerInfo.tileType) ? 'Raster Imagery' : 'Vector MVT'}
+              </span>
+            </div>
+            <div className="p-1.5 bg-slate-800/80 rounded">
+              <span className="text-slate-400 block text-[9px]">ZOOM RANGE</span>
+              <span className="font-bold">
+                Z{headerInfo.minZoom} – Z{headerInfo.maxZoom}
+              </span>
+            </div>
+            <div className="p-1.5 bg-slate-800/80 rounded">
+              <span className="text-slate-400 block text-[9px]">TILE COUNT</span>
+              <span className="font-bold">{headerInfo.numTileEntries.toLocaleString()}</span>
+            </div>
+          </div>
+          <div className="text-[10px] text-slate-400 font-mono">
+            Bounds: [{headerInfo.minLon.toFixed(2)}, {headerInfo.minLat.toFixed(2)}] to [
+            {headerInfo.maxLon.toFixed(2)}, {headerInfo.maxLat.toFixed(2)}]
+          </div>
+        </div>
+      )}
+
+      {/* Error Alert Box */}
+      {error && (
+        <div className="absolute bottom-12 left-3 right-3 z-30 bg-red-900/90 text-red-100 border border-red-500 rounded-xl p-3 text-xs flex items-center justify-between shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-300 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            className="p-1 text-red-300 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Empty State Banner (if no offline map files loaded yet) */}
+      {activeFileSource === 'none' && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none p-4">
+          <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl p-6 max-w-md text-center shadow-2xl text-white pointer-events-auto space-y-4">
+            <div className="w-12 h-12 bg-blue-600/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto border border-blue-500/30">
+              <Upload className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">No Offline Map Archive Loaded</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Upload a <b>.pmtiles</b> map archive or a folder of downloaded <b>PNG map tiles</b> to enable full offline GIS rendering.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isElectron) handleElectronChooseFile();
+                  else pmtilesInputRef.current?.click();
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition"
+              >
+                <Upload className="w-4 h-4" /> Upload PMTiles File
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isElectron) handleElectronChooseFolder();
+                  else folderInputRef.current?.click();
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-700 transition"
+              >
+                <FolderOpen className="w-4 h-4" /> Upload PNG Folder
+              </button>
+            </div>
+            <div className="text-[11px] text-slate-500 pt-1">
+              Tip: You can also drag and drop <b>.pmtiles</b> or tile folders directly onto this window.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Status HUD */}
+      <div className="absolute bottom-2 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none text-[11px] font-mono">
+        <div className="bg-slate-900/85 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-800 shadow-md backdrop-blur-md pointer-events-auto flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>
+            {activeFileName
+              ? `Active: ${activeFileName}`
+              : 'Offline Map Engine Ready'}
+          </span>
+        </div>
+
+        {mouseCoords && (
+          <div className="bg-slate-900/85 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-800 shadow-md backdrop-blur-md pointer-events-auto flex items-center gap-3">
+            <span>
+              {mouseCoords.lat.toFixed(5)}° N, {mouseCoords.lng.toFixed(5)}° E
+            </span>
+            <span className="text-slate-500">|</span>
+            <span className="text-blue-400 font-bold">Zoom {mouseCoords.zoom.toFixed(1)}</span>
+          </div>
+        )}
+      </div>
     </div>
-    {error && <div className="absolute bottom-3 left-3 right-3 z-20 bg-red-50 text-red-700 border border-red-200 rounded-lg p-2 text-xs">{error}</div>}
-  </div>;
+  );
 }

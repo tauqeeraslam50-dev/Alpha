@@ -14,6 +14,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, 
   ReferenceLine, CartesianGrid 
 } from 'recharts';
+import { useAppContext } from '../context/AppContext';
+import { useMap } from 'react-leaflet';
 
 
 
