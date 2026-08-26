@@ -84,10 +84,36 @@ type MapMode = 'online' | 'offline';
 // Leaflet Map Camera controller
 function LeafletMapController({
   targetLoc,
+  isActive,
 }: {
   targetLoc: { lat: number; lng: number; zoom?: number } | null;
+  isActive: boolean;
 }) {
   const map = useMap();
+
+  useEffect(() => {
+    if (isActive) {
+      map.invalidateSize();
+      const t1 = setTimeout(() => map.invalidateSize(), 50);
+      const t2 = setTimeout(() => map.invalidateSize(), 200);
+      const t3 = setTimeout(() => map.invalidateSize(), 500);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
+  }, [isActive, map]);
+
+  useEffect(() => {
+    const container = map.getContainer();
+    if (!container) return;
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [map]);
 
   useEffect(() => {
     if (targetLoc) {
@@ -242,7 +268,7 @@ export function Map() {
             className="w-full h-full z-0"
             zoomControl={false}
           >
-            <LeafletMapController targetLoc={targetLocation} />
+            <LeafletMapController targetLoc={targetLocation} isActive={mode === 'online'} />
 
             {/* Primary Base Tile Layer */}
             <TileLayer

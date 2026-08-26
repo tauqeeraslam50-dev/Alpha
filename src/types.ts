@@ -20,6 +20,7 @@ export interface Site {
   lng: number;
   elevation: number;
   type: 'repeater' | 'base-station' | 'subscriber' | 'microwave-node' | 'relay';
+  status?: 'online' | 'offline' | 'standby';
   radioType?: 'base' | 'vehicular' | 'walkie-talkie' | 'custom';
   equipmentType?: 'VHF' | 'UHF' | 'DMR' | 'SDR' | 'Microwave';
   txPowerW?: number;
