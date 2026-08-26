@@ -10,17 +10,15 @@ import {
   Compass,
   Ruler,
   Maximize2,
-  Minimize2,
   Info,
   Radio,
   FileCheck,
   AlertCircle,
   Eye,
-  EyeOff,
   Sliders,
   Sparkles,
-  RefreshCw,
   Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { MapSearchBar } from './MapSearchBar';
@@ -79,10 +77,22 @@ if (!isCustomPngProtocolRegistered) {
   isCustomPngProtocolRegistered = true;
 }
 
-const localUrl = (filePath: string) => `local-pmtiles://${encodeURIComponent(filePath)}`;
-const archiveUrl = (filePath: string) => `pmtiles://local-pmtiles://${encodeURIComponent(filePath)}`;
-const localTileTemplate = (folder: string) =>
-  `local-map://tile?root=${encodeURIComponent(folder)}&z={z}&x={x}&y={y}`;
+// Clean and format valid URI for Electron protocol handlers
+function formatLocalPmtilesUrl(filePath: string): string {
+  const clean = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+  return `local-pmtiles://pmtiles/${clean}`;
+}
+
+function formatPmtilesProtocolUrl(filePath: string): string {
+  const clean = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+  return `pmtiles://local-pmtiles://pmtiles/${clean}`;
+}
+
+function formatLocalTileTemplate(folder: string): string {
+  const clean = folder.replace(/\\/g, '/').replace(/^\/+/, '');
+  return `local-map://tiles/tile?root=${encodeURIComponent(clean)}&z={z}&x={x}&y={y}`;
+}
+
 const isRasterType = (tileType: number) => [1, 2, 3, 4, 5].includes(tileType);
 
 type OfflineFile = { name: string; path: string; relative: string; size: number; extension: string };
@@ -107,16 +117,30 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   const pmtilesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // State
-  const [filePath, setFilePath] = useState<string>('');
-  const [activeFileSource, setActiveFileSource] = useState<'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'>('none');
-  const [activeFileName, setActiveFileName] = useState<string>('');
-  const [mapFolder, setMapFolder] = useState<string>('');
+  // Persistent State
+  const [filePath, setFilePathState] = useState<string>(() => {
+    return localStorage.getItem('rnms_offline_file_path') || '';
+  });
+  const [activeFileSource, setActiveFileSourceState] = useState<
+    'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'
+  >(() => {
+    return (localStorage.getItem('rnms_offline_active_source') as any) || 'none';
+  });
+  const [activeFileName, setActiveFileNameState] = useState<string>(() => {
+    return localStorage.getItem('rnms_offline_file_name') || '';
+  });
+  const [mapFolder, setMapFolderState] = useState<string>(() => {
+    return localStorage.getItem('rnms_offline_map_folder') || '';
+  });
+  const [rasterOpacity, setRasterOpacityState] = useState<number>(() => {
+    const saved = localStorage.getItem('rnms_offline_raster_opacity');
+    return saved ? parseFloat(saved) : 1.0;
+  });
+
   const [files, setFiles] = useState<OfflineFile[]>([]);
   const [uploadedTileCount, setUploadedTileCount] = useState<number>(0);
   const [headerInfo, setHeaderInfo] = useState<Header | null>(null);
   const [error, setError] = useState<string>('');
-  const [rasterOpacity, setRasterOpacity] = useState<number>(1.0);
 
   // Tool toggles
   const [showSites, setShowSites] = useState<boolean>(true);
@@ -127,9 +151,38 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   const [mouseCoords, setMouseCoords] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const [showInspector, setShowInspector] = useState<boolean>(false);
-  const [activeSearchPin, setActiveSearchPin] = useState<{ lat: number; lng: number; name: string; category?: string } | null>(null);
+  const [activeSearchPin, setActiveSearchPin] = useState<{
+    lat: number;
+    lng: number;
+    name: string;
+    category?: string;
+  } | null>(null);
 
   const isElectron = Boolean(window.rnmsOffline?.isElectron || window.rnmsOffline?.selectMapFolder);
+
+  // Setters with persistent storage
+  const setFilePath = (p: string) => {
+    setFilePathState(p);
+    localStorage.setItem('rnms_offline_file_path', p);
+  };
+  const setActiveFileSource = (
+    s: 'electron-file' | 'web-file' | 'electron-folder' | 'web-folder' | 'none'
+  ) => {
+    setActiveFileSourceState(s);
+    localStorage.setItem('rnms_offline_active_source', s);
+  };
+  const setActiveFileName = (n: string) => {
+    setActiveFileNameState(n);
+    localStorage.setItem('rnms_offline_file_name', n);
+  };
+  const setMapFolder = (f: string) => {
+    setMapFolderState(f);
+    localStorage.setItem('rnms_offline_map_folder', f);
+  };
+  const setRasterOpacity = (op: number) => {
+    setRasterOpacityState(op);
+    localStorage.setItem('rnms_offline_raster_opacity', String(op));
+  };
 
   // Initialize MapLibre
   useEffect(() => {
@@ -206,6 +259,13 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       const map = mapRef.current;
       if (!map) return;
 
+      if (!map.isStyleLoaded()) {
+        map.once('load', () => {
+          void applyPMTilesArchive(sourceUrl, pmtilesInstance, labelName);
+        });
+        return;
+      }
+
       setError('');
       onStatus?.(`Reading ${labelName} metadata…`);
 
@@ -254,15 +314,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             ? metadata.vector_layers
             : [];
 
-          // Intelligent layer grouping for vector styles
-          const colorPalette = [
-            '#3b82f6',
-            '#10b981',
-            '#8b5cf6',
-            '#f59e0b',
-            '#06b6d4',
-            '#64748b',
-          ];
+          const colorPalette = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4', '#64748b'];
 
           vectorLayers.forEach((layer, i) => {
             const cleanId = String(layer.id).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -285,8 +337,12 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
                 paint: { 'line-color': '#2563eb', 'line-width': 1.2 },
               });
             }
-            // Landcover / Greenery / Parks
-            else if (lIdLower.includes('land') || lIdLower.includes('park') || lIdLower.includes('green')) {
+            // Landcover / Greenery
+            else if (
+              lIdLower.includes('land') ||
+              lIdLower.includes('park') ||
+              lIdLower.includes('green')
+            ) {
               map.addLayer({
                 id: `rnms-fill-${cleanId}`,
                 type: 'fill',
@@ -295,8 +351,12 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
                 paint: { 'fill-color': '#34d399', 'fill-opacity': 0.2 },
               });
             }
-            // Roads / Highways / Transportation
-            else if (lIdLower.includes('road') || lIdLower.includes('transport') || lIdLower.includes('highway')) {
+            // Roads
+            else if (
+              lIdLower.includes('road') ||
+              lIdLower.includes('transport') ||
+              lIdLower.includes('highway')
+            ) {
               map.addLayer({
                 id: `rnms-line-${cleanId}`,
                 type: 'line',
@@ -318,7 +378,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
                 paint: { 'fill-color': '#94a3b8', 'fill-opacity': 0.35 },
               });
             }
-            // Generic polygon/line fallback
+            // Fallback
             else {
               const color = colorPalette[i % colorPalette.length];
               map.addLayer({
@@ -340,7 +400,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         }
 
         // Fit Bounds
-        if (header.minLon && header.maxLon && (header.minLon !== header.maxLon)) {
+        if (header.minLon && header.maxLon && header.minLon !== header.maxLon) {
           const bounds: [[number, number], [number, number]] = [
             [header.minLon, header.minLat],
             [header.maxLon, header.maxLat],
@@ -364,14 +424,26 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   // Load Electron PMTiles file
   useEffect(() => {
     if (activeFileSource !== 'electron-file' || !filePath) return;
-    const pmtiles = new PMTiles(localUrl(filePath));
-    void applyPMTilesArchive(archiveUrl(filePath), pmtiles, filePath.split(/[\\/]/).pop() || 'PMTiles Archive');
+    const pmtiles = new PMTiles(formatLocalPmtilesUrl(filePath));
+    void applyPMTilesArchive(
+      formatPmtilesProtocolUrl(filePath),
+      pmtiles,
+      filePath.split(/[\\/]/).pop() || 'PMTiles Archive'
+    );
   }, [activeFileSource, filePath, applyPMTilesArchive]);
 
   // Load Electron Folder PNG tiles
   useEffect(() => {
     const map = mapRef.current;
     if (!map || activeFileSource !== 'electron-folder' || !mapFolder) return;
+
+    if (!map.isStyleLoaded()) {
+      map.once('load', () => {
+        // re-trigger
+        setMapFolder(mapFolder);
+      });
+      return;
+    }
 
     // Clear existing
     const existingLayers = map.getStyle().layers || [];
@@ -385,7 +457,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
     map.addSource(sourceId, {
       type: 'raster',
-      tiles: [localTileTemplate(mapFolder)],
+      tiles: [formatLocalTileTemplate(mapFolder)],
       tileSize: 256,
       minzoom: 0,
       maxzoom: 22,
@@ -405,6 +477,11 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     (count: number, folderLabel: string) => {
       const map = mapRef.current;
       if (!map) return;
+
+      if (!map.isStyleLoaded()) {
+        map.once('load', () => applyWebUploadedTiles(count, folderLabel));
+        return;
+      }
 
       const existingLayers = map.getStyle().layers || [];
       for (const l of existingLayers) {
@@ -437,6 +514,13 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     [onStatus, rasterOpacity]
   );
 
+  // Restore Web Uploaded tiles if already in memory on mount
+  useEffect(() => {
+    if (activeFileSource === 'web-folder' && uploadedTileBlobs.size > 0) {
+      applyWebUploadedTiles(uploadedTileBlobs.size, activeFileName || `Uploaded Tiles (${uploadedTileBlobs.size})`);
+    }
+  }, [activeFileSource, activeFileName, applyWebUploadedTiles]);
+
   // Manual File Upload Handlers (PMTiles & PNG Directory)
   const handlePMTilesFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -449,7 +533,6 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
     setActiveFileSource('web-file');
     void applyPMTilesArchive(sourceUrl, pmtiles, file.name);
-    // Reset input
     e.target.value = '';
   };
 
@@ -481,7 +564,10 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       return;
     }
 
-    applyWebUploadedTiles(tileCount, `${fileList[0].webkitRelativePath?.split('/')[0] || 'Uploaded Tiles'} (${tileCount} tiles)`);
+    applyWebUploadedTiles(
+      tileCount,
+      `${fileList[0].webkitRelativePath?.split('/')[0] || 'Uploaded Tiles'} (${tileCount} tiles)`
+    );
     e.target.value = '';
   };
 
@@ -541,13 +627,15 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   // Electron Dialogs
   const handleElectronChooseFolder = async () => {
     try {
-      const folder = await window.rnmsOffline?.selectMapFolder();
+      const folder = await window.rnmsOffline?.selectMapFolder?.();
       if (!folder) return;
       setMapFolder(folder);
-      const result = await window.rnmsOffline?.scanMapFolder(folder);
+      const result = await window.rnmsOffline?.scanMapFolder?.(folder);
       const all = result ?? [];
       const pmtiles = all.filter((f) => f.extension === '.pmtiles');
-      const pngs = all.filter((f) => f.extension === '.png' || f.extension === '.jpg' || f.extension === '.webp');
+      const pngs = all.filter(
+        (f) => f.extension === '.png' || f.extension === '.jpg' || f.extension === '.webp'
+      );
       setFiles(pmtiles);
 
       if (pmtiles.length) {
@@ -566,7 +654,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
   const handleElectronChooseFile = async () => {
     try {
-      const selected = await window.rnmsOffline?.selectMapFile();
+      const selected = await window.rnmsOffline?.selectMapFile?.();
       if (selected) {
         setFilePath(selected);
         setActiveFileSource('electron-file');
@@ -576,12 +664,41 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     }
   };
 
+  // Reset / Unload Offline Map
+  const handleResetOfflineMap = () => {
+    setFilePath('');
+    setMapFolder('');
+    setActiveFileName('');
+    setActiveFileSource('none');
+    setHeaderInfo(null);
+    setError('');
+    uploadedTileBlobs.clear();
+    setUploadedTileCount(0);
+    localStorage.removeItem('rnms_offline_file_path');
+    localStorage.removeItem('rnms_offline_map_folder');
+    localStorage.removeItem('rnms_offline_file_name');
+    localStorage.removeItem('rnms_offline_active_source');
+
+    const map = mapRef.current;
+    if (map) {
+      const existingLayers = map.getStyle().layers || [];
+      for (const l of existingLayers) {
+        if (l.id !== 'background' && !l.id.startsWith('measure-') && !l.id.startsWith('coverage-')) {
+          map.removeLayer(l.id);
+        }
+      }
+      if (map.getSource('rnms-offline-pmtiles')) map.removeSource('rnms-offline-pmtiles');
+      if (map.getSource('rnms-offline-png')) map.removeSource('rnms-offline-png');
+      if (map.getSource('rnms-web-png-source')) map.removeSource('rnms-web-png-source');
+    }
+    onStatus?.('Offline map unloaded');
+  };
+
   // Render RF Sites Markers on Offline Map
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Clear existing markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
@@ -592,11 +709,11 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       el.className = 'rnms-site-marker cursor-pointer transition-transform hover:scale-110';
 
       const typeColors: Record<string, string> = {
-        repeater: '#10b981', // green
-        'base-station': '#2563eb', // blue
-        subscriber: '#f59e0b', // amber
-        'microwave-node': '#8b5cf6', // purple
-        relay: '#06b6d4', // cyan
+        repeater: '#10b981',
+        'base-station': '#2563eb',
+        subscriber: '#f59e0b',
+        'microwave-node': '#8b5cf6',
+        relay: '#06b6d4',
       };
 
       const color = typeColors[site.type] || '#3b82f6';
@@ -648,7 +765,6 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
     if (!showCoverageRings || sites.length === 0) return;
 
-    // Create GeoJSON circles around sites
     const features = sites.map((site) => {
       const points = 64;
       const coords: [number, number][] = [];
@@ -785,7 +901,6 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     });
   }, [measurePoints]);
 
-  // Calculate measurement stats
   const measurementStats = useMemo(() => {
     if (measurePoints.length < 2) return null;
     const [p1, p2] = measurePoints;
@@ -798,7 +913,6 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     };
   }, [measurePoints]);
 
-  // Handle Search Result Pin
   const handleSelectSearchLocation = (loc: {
     lat: number;
     lng: number;
@@ -831,16 +945,15 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       </div>
     `;
 
-    const popup = new maplibregl.Popup({ offset: 20 })
-      .setHTML(`
-        <div style="font-family: system-ui, sans-serif; padding: 4px;">
-          <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${loc.name}</div>
-          <div style="font-size: 10px; font-weight: 700; color: #ef4444; text-transform: uppercase; margin-bottom: 6px;">${loc.category || 'Target'}</div>
-          <div style="font-size: 11px; color: #475569; font-family: monospace;">
-            ${loc.lat.toFixed(5)}°, ${loc.lng.toFixed(5)}°
-          </div>
+    const popup = new maplibregl.Popup({ offset: 20 }).setHTML(`
+      <div style="font-family: system-ui, sans-serif; padding: 4px;">
+        <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${loc.name}</div>
+        <div style="font-size: 10px; font-weight: 700; color: #ef4444; text-transform: uppercase; margin-bottom: 6px;">${loc.category || 'Target'}</div>
+        <div style="font-size: 11px; color: #475569; font-family: monospace;">
+          ${loc.lat.toFixed(5)}°, ${loc.lng.toFixed(5)}°
         </div>
-      `);
+      </div>
+    `);
 
     const marker = new maplibregl.Marker({ element: pinEl })
       .setLngLat([loc.lng, loc.lat])
@@ -942,7 +1055,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             <span>Upload PNG Folder</span>
           </button>
 
-          {/* Quick PMTiles File Switcher (if multiple exist) */}
+          {/* Quick PMTiles File Switcher (if multiple exist in scanned folder) */}
           {files.length > 1 && (
             <select
               value={filePath}
@@ -1034,6 +1147,18 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
               <Maximize2 className="w-4 h-4 text-emerald-500" />
             </button>
           )}
+
+          {/* Eject / Reset Offline Map */}
+          {activeFileSource !== 'none' && (
+            <button
+              type="button"
+              onClick={handleResetOfflineMap}
+              className="p-1.5 rounded-lg border border-red-200 dark:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition"
+              title="Unload active offline map"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1095,7 +1220,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         </div>
       )}
 
-      {/* Coverage Rings Radius Slider (when rings are active) */}
+      {/* Coverage Rings Radius Slider */}
       {showCoverageRings && (
         <div className="absolute top-16 right-3 z-20 bg-white/90 dark:bg-slate-900/90 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-lg backdrop-blur-md w-56 animate-in fade-in">
           <div className="flex justify-between items-center text-xs font-bold mb-1">
@@ -1170,12 +1295,12 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         <div className="absolute bottom-12 left-3 right-3 z-30 bg-red-900/90 text-red-100 border border-red-500 rounded-xl p-3 text-xs flex items-center justify-between shadow-xl backdrop-blur-md">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-red-300 shrink-0" />
-            <span>{error}</span>
+            <span className="break-all">{error}</span>
           </div>
           <button
             type="button"
             onClick={() => setError('')}
-            className="p-1 text-red-300 hover:text-white"
+            className="p-1 text-red-300 hover:text-white shrink-0 ml-2"
           >
             ✕
           </button>
@@ -1229,9 +1354,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         <div className="bg-slate-900/85 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-800 shadow-md backdrop-blur-md pointer-events-auto flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>
-            {activeFileName
-              ? `Active: ${activeFileName}`
-              : 'Offline Map Engine Ready'}
+            {activeFileName ? `Active: ${activeFileName}` : 'Offline Map Engine Ready'}
           </span>
         </div>
 

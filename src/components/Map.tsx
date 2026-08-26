@@ -103,10 +103,24 @@ function LeafletMapController({
 
 export function Map() {
   const { theme, sites } = useAppContext();
-  const [mode, setMode] = useState<MapMode>('online');
-  const [activeLayerId, setActiveLayerId] = useState<string>(DEFAULT_ONLINE_LAYER_ID);
+  const [mode, setModeState] = useState<MapMode>(() => {
+    return (localStorage.getItem('rnms_map_mode') as MapMode) || 'online';
+  });
+  const [activeLayerId, setActiveLayerId] = useState<string>(() => {
+    return localStorage.getItem('rnms_online_layer_id') || DEFAULT_ONLINE_LAYER_ID;
+  });
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('Offline GIS engine ready');
+
+  const setMode = (newMode: MapMode) => {
+    setModeState(newMode);
+    localStorage.setItem('rnms_map_mode', newMode);
+  };
+
+  const handleLayerChange = (layerId: string) => {
+    setActiveLayerId(layerId);
+    localStorage.setItem('rnms_online_layer_id', layerId);
+  };
 
   // Search Pin State
   const [targetLocation, setTargetLocation] = useState<{
@@ -220,176 +234,175 @@ export function Map() {
 
       {/* Main Map Container */}
       <div className="flex-1 min-h-0 rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-950 relative shadow-inner">
-        {mode === 'online' ? (
-          <>
-            <MapContainer
-              center={[30.3753, 69.3451]}
-              zoom={6}
-              className="w-full h-full z-0"
-              zoomControl={false}
-            >
-              <LeafletMapController targetLoc={targetLocation} />
+        {/* Online Map Container (Persistent) */}
+        <div className={cn('w-full h-full relative', mode === 'online' ? 'block' : 'hidden')}>
+          <MapContainer
+            center={[30.3753, 69.3451]}
+            zoom={6}
+            className="w-full h-full z-0"
+            zoomControl={false}
+          >
+            <LeafletMapController targetLoc={targetLocation} />
 
-              {/* Primary Base Tile Layer */}
+            {/* Primary Base Tile Layer */}
+            <TileLayer
+              key={activeLayer.id}
+              attribution={activeLayer.attribution}
+              url={activeLayer.url}
+              subdomains={activeLayer.subdomains || []}
+              maxZoom={activeLayer.maxZoom}
+            />
+
+            {/* Optional Hybrid English Labels/Boundaries Overlay */}
+            {activeLayer.overlayUrl && (
               <TileLayer
-                key={activeLayer.id}
-                attribution={activeLayer.attribution}
-                url={activeLayer.url}
-                subdomains={activeLayer.subdomains || []}
+                key={`${activeLayer.id}-overlay`}
+                attribution={activeLayer.overlayAttribution || ''}
+                url={activeLayer.overlayUrl}
                 maxZoom={activeLayer.maxZoom}
               />
+            )}
 
-              {/* Optional Hybrid English Labels/Boundaries Overlay */}
-              {activeLayer.overlayUrl && (
-                <TileLayer
-                  key={`${activeLayer.id}-overlay`}
-                  attribution={activeLayer.overlayAttribution || ''}
-                  url={activeLayer.overlayUrl}
-                  maxZoom={activeLayer.maxZoom}
-                />
-              )}
-
-              {/* Site Markers */}
-              {sites.map((site) => (
-                <Marker
-                  key={site.id}
-                  position={[site.lat, site.lng]}
-                  icon={createSiteIcon(site.type)}
-                >
-                  <Popup>
-                    <div className="p-1 font-sans">
-                      <div className="font-bold text-sm text-slate-800">{site.name}</div>
-                      <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">
-                        {site.type.replace('-', ' ')}
-                      </div>
-                      <div className="text-xs text-slate-600 space-y-0.5 font-mono">
-                        <div>Elev: {site.elevation}m AMSL</div>
-                        <div>
-                          Coords: {site.lat.toFixed(4)}°, {site.lng.toFixed(4)}°
-                        </div>
-                        {site.txFreqMHz && <div>TX: {site.txFreqMHz} MHz</div>}
-                      </div>
+            {/* Site Markers */}
+            {sites.map((site) => (
+              <Marker
+                key={site.id}
+                position={[site.lat, site.lng]}
+                icon={createSiteIcon(site.type)}
+              >
+                <Popup>
+                  <div className="p-1 font-sans">
+                    <div className="font-bold text-sm text-slate-800">{site.name}</div>
+                    <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">
+                      {site.type.replace('-', ' ')}
                     </div>
-                  </Popup>
-                </Marker>
-              ))}
-
-              {/* Interactive Search Pin */}
-              {targetLocation && (
-                <Marker
-                  position={[targetLocation.lat, targetLocation.lng]}
-                  icon={searchTargetIcon}
-                >
-                  <Popup autoPan>
-                    <div className="p-1.5 font-sans min-w-[180px]">
-                      <div className="font-bold text-sm text-slate-900">{targetLocation.name}</div>
-                      <div className="text-[10px] font-bold text-rose-600 uppercase mb-1.5">
-                        {targetLocation.category || 'Target Location'}
+                    <div className="text-xs text-slate-600 space-y-0.5 font-mono">
+                      <div>Elev: {site.elevation}m AMSL</div>
+                      <div>
+                        Coords: {site.lat.toFixed(4)}°, {site.lng.toFixed(4)}°
                       </div>
-                      <div className="text-xs text-slate-600 font-mono space-y-1">
-                        <div>
-                          Lat: <b>{targetLocation.lat.toFixed(5)}°</b>
-                        </div>
-                        <div>
-                          Lng: <b>{targetLocation.lng.toFixed(5)}°</b>
-                        </div>
-                        {targetLocation.elevationM ? (
-                          <div>
-                            Elevation: <b>{targetLocation.elevationM}m</b>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between gap-1">
-                        <button
-                          type="button"
-                          onClick={handleClearPin}
-                          className="text-[10px] text-rose-600 hover:underline font-bold"
-                        >
-                          Remove Pin
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(
-                              `${targetLocation.lat.toFixed(5)}, ${targetLocation.lng.toFixed(5)}`
-                            );
-                          }}
-                          className="text-[10px] text-blue-600 hover:underline font-bold"
-                        >
-                          Copy Coords
-                        </button>
-                      </div>
+                      {site.txFreqMHz && <div>TX: {site.txFreqMHz} MHz</div>}
                     </div>
-                  </Popup>
-                </Marker>
-              )}
-            </MapContainer>
-
-            {/* Floating Top Controls Overlay */}
-            <div className="absolute top-3 left-3 right-3 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-              {/* Universal Search Bar */}
-              <div className="pointer-events-auto w-full max-w-sm sm:max-w-md">
-                <MapSearchBar
-                  isOnline={true}
-                  hasActivePin={Boolean(targetLocation)}
-                  onSelectLocation={handleSelectLocation}
-                  onClearPin={handleClearPin}
-                  placeholder="Search cities worldwide, Pakistani towns, sites, coordinates..."
-                />
-              </div>
-
-              {/* English Layer Switcher Menu */}
-              <div ref={layerMenuRef} className="relative pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                >
-                  <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>{activeLayer.name}</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                </button>
-
-                {isLayerMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl p-1.5 z-[500] space-y-1 animate-in fade-in zoom-in-95 duration-100 text-xs">
-                    <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      English Map Baselayers
-                    </div>
-                    {Object.values(ONLINE_MAP_LAYERS).map((layer) => {
-                      const isSelected = layer.id === activeLayerId;
-                      return (
-                        <button
-                          key={layer.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveLayerId(layer.id);
-                            setIsLayerMenuOpen(false);
-                          }}
-                          className={cn(
-                            'w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition',
-                            isSelected
-                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300 font-bold'
-                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          )}
-                        >
-                          <div>
-                            <div className="font-semibold">{layer.name}</div>
-                            <div className="text-[10px] text-slate-400 font-normal">
-                              {layer.description}
-                            </div>
-                          </div>
-                          {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0 ml-2" />}
-                        </button>
-                      );
-                    })}
                   </div>
-                )}
-              </div>
+                </Popup>
+              </Marker>
+            ))}
+
+            {/* Interactive Search Pin */}
+            {targetLocation && (
+              <Marker
+                position={[targetLocation.lat, targetLocation.lng]}
+                icon={searchTargetIcon}
+              >
+                <Popup autoPan>
+                  <div className="p-1.5 font-sans min-w-[180px]">
+                    <div className="font-bold text-sm text-slate-900">{targetLocation.name}</div>
+                    <div className="text-[10px] font-bold text-rose-600 uppercase mb-1.5">
+                      {targetLocation.category || 'Target Location'}
+                    </div>
+                    <div className="text-xs text-slate-600 font-mono space-y-1">
+                      <div>
+                        Lat: <b>{targetLocation.lat.toFixed(5)}°</b>
+                      </div>
+                      <div>
+                        Lng: <b>{targetLocation.lng.toFixed(5)}°</b>
+                      </div>
+                      {targetLocation.elevationM ? (
+                        <div>
+                          Elevation: <b>{targetLocation.elevationM}m</b>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between gap-1">
+                      <button
+                        type="button"
+                        onClick={handleClearPin}
+                        className="text-[10px] text-rose-600 hover:underline font-bold"
+                      >
+                        Remove Pin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `${targetLocation.lat.toFixed(5)}, ${targetLocation.lng.toFixed(5)}`
+                          );
+                        }}
+                        className="text-[10px] text-blue-600 hover:underline font-bold"
+                      >
+                        Copy Coords
+                      </button>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+          </MapContainer>
+
+          {/* Floating Top Controls Overlay */}
+          <div className="absolute top-3 left-3 right-3 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+            {/* Universal Search Bar */}
+            <div className="pointer-events-auto w-full max-w-sm sm:max-w-md">
+              <MapSearchBar
+                isOnline={true}
+                hasActivePin={Boolean(targetLocation)}
+                onSelectLocation={handleSelectLocation}
+                onClearPin={handleClearPin}
+                placeholder="Search cities worldwide, Pakistani towns, sites, coordinates..."
+              />
             </div>
-          </>
-        ) : (
+
+            {/* English Layer Switcher Menu */}
+            <div ref={layerMenuRef} className="relative pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
+                className="flex items-center gap-2 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>{activeLayer.name}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {isLayerMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl p-1.5 z-[500] space-y-1 animate-in fade-in zoom-in-95 duration-100 text-xs">
+                  <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    English Map Baselayers
+                  </div>
+                  {Object.values(ONLINE_MAP_LAYERS).map((layer) => {
+                    const isSelected = layer.id === activeLayerId;
+                    return (
+                      <button
+                        key={layer.id}
+                        type="button"
+                        onClick={() => handleLayerChange(layer.id)}
+                        className={cn(
+                          'w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition',
+                          isSelected
+                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300 font-bold'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        )}
+                      >
+                        <div>
+                          <div className="font-semibold">{layer.name}</div>
+                          <div className="text-[10px] text-slate-400 font-normal">
+                            {layer.description}
+                          </div>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0 ml-2" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Offline Map Container (Persistent) */}
+        <div className={cn('w-full h-full relative', mode === 'offline' ? 'block' : 'hidden')}>
           <OfflineMapEngine onStatus={setStatus} />
-        )}
+        </div>
       </div>
 
       {/* Footer Info / Status */}

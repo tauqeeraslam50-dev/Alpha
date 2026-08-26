@@ -38,9 +38,11 @@ function scanFolder(folder) {
 
 function safeFilePath(value) {
   let decoded = decodeURIComponent(value || '');
-  // Accept local-pmtiles:///C:/... as well as local-pmtiles://C:/... and
-  // normalize the leading slash that URL parsing adds on Windows.
+  // Remove hostname prefix if present (e.g. pmtiles/D:/... -> D:/...)
+  decoded = decoded.replace(/^[A-Za-z0-9_-]+\/+([A-Za-z]:)/, '$1');
+  // Accept /C:/... or ///C:/... and normalize to C:/... on Windows
   decoded = decoded.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
+  decoded = decoded.replace(/^\/+/, '');
   return path.normalize(decoded);
 }
 
@@ -64,7 +66,12 @@ function fileResponse(filePath, request, contentType) {
 app.whenReady().then(() => {
   protocol.handle(LOCAL_SCHEME, async (request) => {
     try {
-      const raw = request.url.slice(`${LOCAL_SCHEME}://`.length);
+      const url = new URL(request.url);
+      let decoded = decodeURIComponent(url.pathname || '');
+      let raw = decoded;
+      if (!raw || raw === '/') {
+        raw = decodeURIComponent(request.url.slice(`${LOCAL_SCHEME}://`.length));
+      }
       const filePath = safeFilePath(raw);
       return fileResponse(filePath, request, 'application/octet-stream');
     } catch (error) { console.error('local-pmtiles:', error); return new Response('Bad local PMTiles request', { status: 500 }); }
