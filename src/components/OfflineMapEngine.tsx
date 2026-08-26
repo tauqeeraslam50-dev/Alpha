@@ -28,7 +28,17 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     map.on('mousemove', e => onStatus?.(`${e.lngLat.lat.toFixed(5)}, ${e.lngLat.lng.toFixed(5)}  |  Zoom ${map.getZoom().toFixed(1)}`));
     map.on('error', e => { if (e.error?.message) setError(e.error.message); });
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = undefined; };
+
+    // The map stays mounted while Alpha switches modules. ResizeObserver makes
+    // MapLibre recalculate its canvas when the map becomes visible again.
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(container.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      map.remove();
+      mapRef.current = undefined;
+    };
   }, [onStatus]);
 
   const chooseFolder = async () => {
