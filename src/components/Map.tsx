@@ -20,10 +20,14 @@ import {
   Trash2,
   ArrowRight,
   ShieldCheck,
+  ShieldAlert,
+  AlertTriangle,
+  Mountain,
   Link2,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { cn, calculateDistanceKm, calculateFSPL, calculateBearing } from '../lib/utils';
+import { analyzeLOS, type LOSAnalysisResult } from '../lib/losUtils';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -95,20 +99,43 @@ function createSiteIcon(type: string, isConnectingSource = false) {
   });
 }
 
-// RF Link Midpoint Badge creator
-function createLinkBadgeIcon(distanceKm: number, snr: number, status: string, color: string) {
+// RF Link Midpoint Badge creator with Terrain Blocked indicator
+function createLinkBadgeIcon(
+  distanceKm: number,
+  snr: number,
+  status: string,
+  color: string,
+  isBlocked = false
+) {
+  const iconEmoji = isBlocked ? '🔴' : color === '#f59e0b' ? '🟡' : '🟢';
+  const label = isBlocked ? 'BLOCKED (NO LOS)' : `${snr.toFixed(1)} dB SNR`;
   return L.divIcon({
     className: 'rnms-link-leaflet-badge',
     html: `
-      <div style="transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.94); border: 1.5px solid ${color}; border-radius: 6px; padding: 2px 6px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(4px); white-space: nowrap; cursor: pointer;">
-        <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${color}; box-shadow: 0 0 5px ${color};"></span>
+      <div style="transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.95); border: 1.5px solid ${color}; border-radius: 6px; padding: 2px 7px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(4px); white-space: nowrap; cursor: pointer;">
+        <span>${iconEmoji}</span>
         <span>${distanceKm.toFixed(1)} km</span>
         <span style="color: #64748b;">•</span>
-        <span style="color: ${color};">${snr.toFixed(1)} dB SNR</span>
+        <span style="color: ${color}; font-weight: 800;">${label}</span>
       </div>
     `,
-    iconSize: [120, 24],
-    iconAnchor: [60, 12],
+    iconSize: [160, 24],
+    iconAnchor: [80, 12],
+  });
+}
+
+// Terrain Obstruction Peak Marker creator
+function createObstructionIcon(deficitM: number, distanceKm: number) {
+  return L.divIcon({
+    className: 'rnms-obstruction-leaflet-badge',
+    html: `
+      <div style="transform: translate(-50%, -50%); background: rgba(220, 38, 38, 0.95); border: 2px solid #ffffff; border-radius: 9999px; padding: 2px 8px; color: #ffffff; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 800; display: flex; align-items: center; gap: 4px; box-shadow: 0 0 16px rgba(239, 68, 68, 0.9), 0 4px 8px rgba(0,0,0,0.5); backdrop-filter: blur(4px); white-space: nowrap; cursor: pointer;">
+        <span>⚠️</span>
+        <span>BLOCK +${deficitM.toFixed(0)}m</span>
+      </div>
+    `,
+    iconSize: [130, 24],
+    iconAnchor: [65, 12],
   });
 }
 
@@ -222,10 +249,13 @@ export function Map() {
     snr: number;
     rsl: number;
     fspl: number;
-    status: 'EXCELLENT' | 'GOOD' | 'MARGINAL' | 'CRITICAL' | 'OFFLINE';
+    diffractionLossDB: number;
+    status: 'CLEAR' | 'MARGINAL' | 'TERRAIN BLOCKED' | 'OFFLINE';
     color: string;
     bearingAtoB: number;
     bearingBtoA: number;
+    losResult: LOSAnalysisResult;
+    isTerrainBlocked: boolean;
   } | null>(null);
 
   const setMode = (newMode: MapMode) => {
@@ -445,7 +475,7 @@ export function Map() {
             {/* Cisco Packet Tracer Live Wire Preview while dragging */}
             <LiveWireLayer isConnecting={isConnecting} source={connectingSource} />
 
-            {/* Site-to-Site RF Links (Packet Tracer Colored Links) */}
+            {/* Site-to-Site RF Links (Packet Tracer Colored & Terrain Blocked Links) */}
             {showLinks &&
               links.map((link) => {
                 const s = sites.find((site) => site.id === link.sourceSiteId);
@@ -455,36 +485,56 @@ export function Map() {
                 const distanceKm = calculateDistanceKm(s.lat, s.lng, t.lat, t.lng);
                 const freqMHz = link.frequencyMHz || 400;
                 const fspl = calculateFSPL(distanceKm, freqMHz);
+                const txTowerM = s.antennaHeightM || 20;
+                const rxTowerM = t.antennaHeightM || 20;
+
+                // High-precision terrain LOS profile calculation
+                const losResult = analyzeLOS({
+                  txLat: s.lat,
+                  txLng: s.lng,
+                  rxLat: t.lat,
+                  rxLng: t.lng,
+                  txElevationM: s.elevation,
+                  rxElevationM: t.elevation,
+                  txTowerHeightM: txTowerM,
+                  rxTowerHeightM: rxTowerM,
+                  frequencyMHz: freqMHz,
+                  samplePointsCount: 30,
+                });
+
+                const isTerrainBlocked =
+                  losResult.status === 'OBSTRUCTED' ||
+                  (losResult.worstPoint && losResult.worstPoint.clearanceM < 0);
+                const diffractionLossDB = losResult.diffractionLossDB || 0;
+
                 const txPower = link.txPowerDBm ?? 43;
                 const txGain = link.txAntennaGainDBi ?? 6;
                 const rxGain = link.rxAntennaGainDBi ?? 6;
                 const txLoss = link.txCableLossDB ?? 1.5;
                 const rxLoss = link.rxCableLossDB ?? 1.5;
-                const rsl = txPower + txGain + rxGain - txLoss - rxLoss - fspl;
+                const effectiveRsl =
+                  txPower + txGain + rxGain - txLoss - rxLoss - (fspl + diffractionLossDB);
                 const bandwidthHz = (link.channelBandwidthKHz || 12.5) * 1000;
                 const noiseFloor = -174 + 10 * Math.log10(bandwidthHz);
-                const snr = rsl - noiseFloor;
+                const effectiveSnr = effectiveRsl - noiseFloor;
                 const bearingAtoB = calculateBearing(s.lat, s.lng, t.lat, t.lng);
                 const bearingBtoA = (bearingAtoB + 180) % 360;
 
-                let status: 'EXCELLENT' | 'GOOD' | 'MARGINAL' | 'CRITICAL' | 'OFFLINE' = 'GOOD';
+                let status: 'CLEAR' | 'MARGINAL' | 'TERRAIN BLOCKED' | 'OFFLINE' = 'CLEAR';
                 let color = '#22c55e'; // green
 
                 if (s.status === 'offline' || t.status === 'offline') {
                   status = 'OFFLINE';
                   color = '#94a3b8'; // gray
-                } else if (snr >= 35) {
-                  status = 'EXCELLENT';
-                  color = '#10b981'; // emerald
-                } else if (snr >= 22) {
-                  status = 'GOOD';
-                  color = '#22c55e'; // green
-                } else if (snr >= 12) {
+                } else if (isTerrainBlocked) {
+                  status = 'TERRAIN BLOCKED';
+                  color = '#ef4444'; // vibrant red for terrain blocked
+                } else if (losResult.status === 'MARGINAL' || effectiveSnr < 22) {
                   status = 'MARGINAL';
                   color = '#f59e0b'; // amber
                 } else {
-                  status = 'CRITICAL';
-                  color = '#ef4444'; // red
+                  status = 'CLEAR';
+                  color = effectiveSnr >= 35 ? '#10b981' : '#22c55e'; // emerald / green
                 }
 
                 const linkInfo = {
@@ -492,18 +542,21 @@ export function Map() {
                   source: s,
                   target: t,
                   distanceKm,
-                  snr,
-                  rsl,
+                  snr: effectiveSnr,
+                  rsl: effectiveRsl,
                   fspl,
+                  diffractionLossDB,
                   status,
                   color,
                   bearingAtoB,
                   bearingBtoA,
+                  losResult,
+                  isTerrainBlocked,
                 };
 
                 return (
                   <React.Fragment key={link.id}>
-                    {/* Outer Glow */}
+                    {/* Outer Ambient Glow Line */}
                     <Polyline
                       positions={[
                         [s.lat, s.lng],
@@ -511,8 +564,8 @@ export function Map() {
                       ]}
                       pathOptions={{
                         color,
-                        weight: 8,
-                        opacity: 0.25,
+                        weight: isTerrainBlocked ? 10 : 8,
+                        opacity: isTerrainBlocked ? 0.4 : 0.25,
                       }}
                       eventHandlers={{
                         click: (e) => {
@@ -522,7 +575,7 @@ export function Map() {
                       }}
                     />
 
-                    {/* Core Solid Link */}
+                    {/* Core Link Ray Line */}
                     <Polyline
                       positions={[
                         [s.lat, s.lng],
@@ -530,9 +583,14 @@ export function Map() {
                       ]}
                       pathOptions={{
                         color,
-                        weight: 3.5,
+                        weight: isTerrainBlocked ? 4 : 3.5,
                         opacity: 0.95,
-                        dashArray: status === 'OFFLINE' ? '6, 6' : undefined,
+                        dashArray:
+                          status === 'OFFLINE'
+                            ? '6, 6'
+                            : isTerrainBlocked
+                            ? '4, 4'
+                            : undefined,
                       }}
                       eventHandlers={{
                         click: (e) => {
@@ -546,7 +604,30 @@ export function Map() {
                     {showLinkMetrics && (
                       <Marker
                         position={[(s.lat + t.lat) / 2, (s.lng + t.lng) / 2]}
-                        icon={createLinkBadgeIcon(distanceKm, snr, status, color)}
+                        icon={createLinkBadgeIcon(
+                          distanceKm,
+                          effectiveSnr,
+                          status,
+                          color,
+                          isTerrainBlocked
+                        )}
+                        eventHandlers={{
+                          click: (e) => {
+                            L.DomEvent.stopPropagation(e);
+                            setSelectedLinkInfo(linkInfo);
+                          },
+                        }}
+                      />
+                    )}
+
+                    {/* Peak Obstruction Point Marker (if terrain blocks ray) */}
+                    {isTerrainBlocked && losResult.worstPoint && (
+                      <Marker
+                        position={[losResult.worstPoint.lat, losResult.worstPoint.lng]}
+                        icon={createObstructionIcon(
+                          Math.abs(losResult.worstPoint.clearanceM),
+                          losResult.worstPoint.distanceKm
+                        )}
                         eventHandlers={{
                           click: (e) => {
                             L.DomEvent.stopPropagation(e);
@@ -821,7 +902,7 @@ export function Map() {
 
           {/* Selected RF Link Details Inspector Card */}
           {selectedLinkInfo && (
-            <div className="absolute bottom-6 left-3 z-[450] w-80 sm:w-96 bg-slate-900/95 text-white rounded-2xl border border-slate-700 shadow-2xl p-4 backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
+            <div className="absolute bottom-6 left-3 z-[450] w-84 sm:w-[420px] bg-slate-900/95 text-white rounded-2xl border border-slate-700 shadow-2xl p-4 backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
                 <div className="flex items-center gap-2">
                   <div
@@ -829,7 +910,7 @@ export function Map() {
                     style={{ backgroundColor: selectedLinkInfo.color }}
                   />
                   <span className="font-bold text-xs text-slate-200 uppercase tracking-wider">
-                    RF Link Connectivity
+                    RF Link Connectivity & LOS
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -841,7 +922,9 @@ export function Map() {
                       border: `1px solid ${selectedLinkInfo.color}60`,
                     }}
                   >
-                    {selectedLinkInfo.status}
+                    {selectedLinkInfo.isTerrainBlocked
+                      ? '🔴 BLOCKED (NO LOS)'
+                      : selectedLinkInfo.status}
                   </span>
                   <button
                     type="button"
@@ -852,6 +935,42 @@ export function Map() {
                   </button>
                 </div>
               </div>
+
+              {/* Terrain Blockage Alert Banner */}
+              {selectedLinkInfo.isTerrainBlocked ? (
+                <div className="bg-red-950/70 border border-red-500/80 rounded-xl p-2.5 mb-3 flex items-start gap-2 text-xs text-red-200 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-red-300">
+                      Terrain Blocked — Line of Sight Severed
+                    </div>
+                    <div className="text-[11px] text-red-300/80 mt-0.5">
+                      Mountain peak at{' '}
+                      <b>{selectedLinkInfo.losResult.worstPoint?.distanceKm.toFixed(1)} km</b> rises{' '}
+                      <b>
+                        +{Math.abs(selectedLinkInfo.losResult.worstPoint?.clearanceM || 0).toFixed(0)}m
+                      </b>{' '}
+                      into direct optical ray. Link cannot close without repeater or higher towers.
+                    </div>
+                  </div>
+                </div>
+              ) : selectedLinkInfo.status === 'MARGINAL' ? (
+                <div className="bg-amber-950/70 border border-amber-500/80 rounded-xl p-2 mb-3 flex items-center gap-2 text-xs text-amber-200 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div className="text-[11px]">
+                    <b>Fresnel Zone Encroached:</b> Terrain incurs{' '}
+                    <b>+{selectedLinkInfo.diffractionLossDB.toFixed(1)} dB</b> knife-edge diffraction loss.
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-emerald-950/60 border border-emerald-500/60 rounded-xl p-2 mb-3 flex items-center gap-2 text-xs text-emerald-200 animate-in fade-in">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div className="text-[11px]">
+                    <b>Clear Line of Sight:</b> Full optical & 60% Fresnel clearance verified (+
+                    {selectedLinkInfo.losResult.worstPoint?.clearanceM.toFixed(0)}m margin).
+                  </div>
+                </div>
+              )}
 
               {/* Site-to-Site Nodes */}
               <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60 mb-3 flex items-center justify-between text-xs">
@@ -866,7 +985,7 @@ export function Map() {
                 </div>
               </div>
 
-              {/* Key RF Connectivity Metrics */}
+              {/* Key RF & Terrain Metrics */}
               <div className="grid grid-cols-2 gap-2 text-xs font-mono mb-3">
                 <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
                   <div className="text-[10px] text-slate-400 font-sans">Air Distance</div>
@@ -881,26 +1000,41 @@ export function Map() {
                 <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
                   <div className="text-[10px] text-slate-400 font-sans">SNR Value</div>
                   <div className="font-bold text-sm" style={{ color: selectedLinkInfo.color }}>
-                    {selectedLinkInfo.snr.toFixed(1)} dB
+                    {selectedLinkInfo.isTerrainBlocked ? 'BLOCKED' : `${selectedLinkInfo.snr.toFixed(1)} dB`}
                   </div>
-                  <div className="text-[9px] text-slate-500 font-sans">Signal-to-Noise</div>
-                </div>
-
-                <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
-                  <div className="text-[10px] text-slate-400 font-sans">Received Signal (RSL)</div>
-                  <div className="font-bold text-white text-xs">{selectedLinkInfo.rsl.toFixed(1)} dBm</div>
                   <div className="text-[9px] text-slate-500 font-sans">
-                    FSPL: {selectedLinkInfo.fspl.toFixed(1)} dB
+                    {selectedLinkInfo.isTerrainBlocked ? 'Path Deficit' : 'Signal-to-Noise'}
                   </div>
                 </div>
 
                 <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
-                  <div className="text-[10px] text-slate-400 font-sans">True Bearing / Azimuth</div>
+                  <div className="text-[10px] text-slate-400 font-sans">Received Power (RSL)</div>
                   <div className="font-bold text-white text-xs">
-                    {selectedLinkInfo.bearingAtoB.toFixed(1)}° ➔ {selectedLinkInfo.bearingBtoA.toFixed(1)}°
+                    {selectedLinkInfo.rsl.toFixed(1)} dBm
                   </div>
                   <div className="text-[9px] text-slate-500 font-sans">
-                    Freq: {selectedLinkInfo.link.frequencyMHz || 400} MHz
+                    Diffraction: +{selectedLinkInfo.diffractionLossDB.toFixed(1)} dB
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-sans">Terrain Clearance</div>
+                  <div
+                    className={cn(
+                      'font-bold text-xs',
+                      selectedLinkInfo.isTerrainBlocked
+                        ? 'text-red-400'
+                        : selectedLinkInfo.status === 'MARGINAL'
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                    )}
+                  >
+                    {selectedLinkInfo.losResult.worstPoint
+                      ? `${selectedLinkInfo.losResult.worstPoint.clearanceM >= 0 ? '+' : ''}${selectedLinkInfo.losResult.worstPoint.clearanceM.toFixed(1)} m`
+                      : 'N/A'}
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-sans">
+                    Worst at {selectedLinkInfo.losResult.worstPoint?.distanceKm.toFixed(1)} km
                   </div>
                 </div>
               </div>

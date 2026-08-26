@@ -463,3 +463,5 @@ export function calculateRadialViewshed(
 
   return result;
 }
+
+export const analyzeLOS = analyzeLineOfSight;
