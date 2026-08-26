@@ -11,10 +11,13 @@ import {
   Sparkles,
   Database,
   ArrowRight,
+  Mountain,
+  FileText,
 } from 'lucide-react';
 import {
   downloadOfflineMapBundle,
   calculateTileCount,
+  getPlacesInBounds,
   type DownloadArea,
   type DownloadProgress,
 } from '../gis/mapDownloader';
@@ -39,12 +42,12 @@ export function MapDownloadModal({
   currentBounds,
   onApplyToOfflineEngine,
 }: MapDownloadModalProps) {
-  const [areaName, setAreaName] = useState('Islamabad & Rawalpindi Region');
+  const [areaName, setAreaName] = useState('Pakistan (National Coverage)');
   const [selectedLayerType, setSelectedLayerType] = useState<
     'satellite' | 'street' | 'topo' | 'both'
   >('both');
 
-  // Bounds
+  // Bounds (Default to all Pakistan)
   const [bounds, setBounds] = useState<{
     minLat: number;
     maxLat: number;
@@ -52,18 +55,22 @@ export function MapDownloadModal({
     maxLng: number;
   }>(() => {
     if (currentBounds) return currentBounds;
-    // Default to Islamabad & Northern Punjab
+    // Default to All Pakistan
     return {
-      minLat: 33.4,
-      maxLat: 34.0,
-      minLng: 72.8,
-      maxLng: 73.5,
+      minLat: 23.5,
+      maxLat: 37.2,
+      minLng: 60.8,
+      maxLng: 77.8,
     };
   });
 
-  // Zoom Levels
-  const [minZoom, setMinZoom] = useState<number>(6);
-  const [maxZoom, setMaxZoom] = useState<number>(11);
+  // Zoom Levels (for national map, Z4-Z9 is optimal)
+  const [minZoom, setMinZoom] = useState<number>(4);
+  const [maxZoom, setMaxZoom] = useState<number>(9);
+
+  // Bundling Options
+  const [includePlaces, setIncludePlaces] = useState<boolean>(true);
+  const [includeTerrain, setIncludeTerrain] = useState<boolean>(true);
 
   // Auto Load into offline engine
   const [autoLoad, setAutoLoad] = useState<boolean>(true);
@@ -75,6 +82,7 @@ export function MapDownloadModal({
     fileName: string;
     url: string;
     tileCount: number;
+    placesCount: number;
   } | null>(null);
   const [error, setError] = useState<string>('');
 
@@ -105,8 +113,10 @@ export function MapDownloadModal({
       minZoom,
       maxZoom,
       layerIds: activeLayerIds,
+      includePlacesData: includePlaces,
+      includeTerrainData: includeTerrain,
     }),
-    [areaName, bounds, minZoom, maxZoom, activeLayerIds]
+    [areaName, bounds, minZoom, maxZoom, activeLayerIds, includePlaces, includeTerrain]
   );
 
   const estimatedTileCount = useMemo(() => {
@@ -114,18 +124,28 @@ export function MapDownloadModal({
   }, [downloadAreaConfig]);
 
   const estimatedSizeMb = useMemo(() => {
-    // Average tile size ~ 25 KB
     return ((estimatedTileCount * 25) / 1024).toFixed(1);
   }, [estimatedTileCount]);
 
+  const matchingPlaces = useMemo(() => {
+    return getPlacesInBounds(bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng);
+  }, [bounds]);
+
   // Preset Area Selector
-  const handleSelectPreset = (name: string, b: { minLat: number; maxLat: number; minLng: number; maxLng: number }) => {
+  const handleSelectPreset = (
+    name: string,
+    b: { minLat: number; maxLat: number; minLng: number; maxLng: number },
+    defaultMinZ = 5,
+    defaultMaxZ = 10
+  ) => {
     setAreaName(name);
     setBounds(b);
+    setMinZoom(defaultMinZ);
+    setMaxZoom(defaultMaxZ);
   };
 
   const handleStartDownload = async () => {
-    if (estimatedTileCount > 5000) {
+    if (estimatedTileCount > 6000) {
       if (
         !confirm(
           `You are about to download ${estimatedTileCount.toLocaleString()} tiles (~${estimatedSizeMb} MB). This may take several minutes. Do you wish to proceed?`
@@ -154,6 +174,7 @@ export function MapDownloadModal({
         fileName: result.fileName,
         url: downloadUrl,
         tileCount: result.tileBlobsMap.size,
+        placesCount: result.placesCount,
       });
 
       // Auto trigger browser download
@@ -168,7 +189,7 @@ export function MapDownloadModal({
       if (autoLoad && onApplyToOfflineEngine) {
         onApplyToOfflineEngine(
           result.tileBlobsMap.size,
-          `${areaName} (${result.tileBlobsMap.size} tiles)`,
+          `${areaName} (${result.tileBlobsMap.size} tiles + ${result.placesCount} places)`,
           result.tileBlobsMap
         );
       }
@@ -196,15 +217,18 @@ export function MapDownloadModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/60">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
+            <div className="p-2 rounded-xl bg-emerald-600/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
               <Download className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">
-                Download Map for Offline Use
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
+                <span>Download Offline Map & Pakistan Data</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                  🇵🇰 Pakistan Ready
+                </span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Package Satellite and Street map tiles for 100% offline field GIS operation
+                Package Satellite, Street tiles, Places Gazetteer & DEM terrain elevation data
               </p>
             </div>
           </div>
@@ -222,77 +246,168 @@ export function MapDownloadModal({
         <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
           {/* Quick Preset Selector */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">
-              Select Preset Region
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 flex items-center justify-between">
+              <span>Select Region Preset</span>
+              <span className="text-blue-600 dark:text-blue-400 font-normal">
+                {matchingPlaces.length} Pakistani Places Covered
+              </span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              {/* Entire Pakistan */}
               <button
                 type="button"
                 onClick={() =>
-                  handleSelectPreset('Islamabad & Rawalpindi', {
-                    minLat: 33.45,
-                    maxLat: 33.85,
-                    minLng: 72.85,
-                    maxLng: 73.35,
-                  })
+                  handleSelectPreset(
+                    'Pakistan (All Regions)',
+                    { minLat: 23.5, maxLat: 37.2, minLng: 60.8, maxLng: 77.8 },
+                    4,
+                    8
+                  )
                 }
-                className="p-2 border rounded-xl font-bold text-left hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition"
+                className={cn(
+                  'p-2.5 border rounded-xl font-bold text-left transition',
+                  areaName.includes('All Regions')
+                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20'
+                    : 'hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
+                )}
               >
-                <div>🏛️ Islamabad / RWP</div>
-                <div className="text-[10px] text-slate-400 font-normal">Capital & Margalla</div>
+                <div className="flex items-center justify-between">
+                  <span>🇵🇰 All Pakistan</span>
+                  <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-mono">
+                    NATIONAL
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                  Complete Country & Borders
+                </div>
               </button>
+
+              {/* Punjab & Capital */}
               <button
                 type="button"
                 onClick={() =>
-                  handleSelectPreset('Lahore & Surroundings', {
-                    minLat: 31.35,
-                    maxLat: 31.7,
-                    minLng: 74.15,
-                    maxLng: 74.55,
-                  })
+                  handleSelectPreset(
+                    'Punjab & Islamabad Region',
+                    { minLat: 28.5, maxLat: 34.2, minLng: 69.8, maxLng: 75.6 },
+                    6,
+                    10
+                  )
                 }
-                className="p-2 border rounded-xl font-bold text-left hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition"
+                className={cn(
+                  'p-2.5 border rounded-xl font-bold text-left transition',
+                  areaName.includes('Punjab')
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                    : 'hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20'
+                )}
               >
-                <div>🏙️ Lahore City</div>
-                <div className="text-[10px] text-slate-400 font-normal">Central Punjab</div>
+                <div>🏛️ Punjab & ICT</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                  ISB, RWP, LHR, Multan, PAC
+                </div>
               </button>
+
+              {/* Sindh & Coast */}
               <button
                 type="button"
                 onClick={() =>
-                  handleSelectPreset('Karachi & Coastal Area', {
-                    minLat: 24.75,
-                    maxLat: 25.1,
-                    minLng: 66.85,
-                    maxLng: 67.35,
-                  })
+                  handleSelectPreset(
+                    'Sindh & Coastal Bases',
+                    { minLat: 23.6, maxLat: 28.6, minLng: 66.5, maxLng: 71.3 },
+                    6,
+                    10
+                  )
                 }
-                className="p-2 border rounded-xl font-bold text-left hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition"
+                className={cn(
+                  'p-2.5 border rounded-xl font-bold text-left transition',
+                  areaName.includes('Sindh')
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                    : 'hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20'
+                )}
               >
-                <div>⚓ Karachi Coast</div>
-                <div className="text-[10px] text-slate-400 font-normal">Fleet & Ports</div>
+                <div>⚓ Sindh & Ports</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                  Karachi, Hyd, Sukkur, PNS
+                </div>
               </button>
+
+              {/* KPK & Valleys */}
               <button
                 type="button"
                 onClick={() =>
-                  handleSelectPreset('Peshawar & Frontier', {
-                    minLat: 33.85,
-                    maxLat: 34.2,
-                    minLng: 71.35,
-                    maxLng: 71.8,
-                  })
+                  handleSelectPreset(
+                    'KPK & Northern Frontier',
+                    { minLat: 31.2, maxLat: 36.9, minLng: 69.3, maxLng: 74.2 },
+                    6,
+                    10
+                  )
                 }
-                className="p-2 border rounded-xl font-bold text-left hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition"
+                className={cn(
+                  'p-2.5 border rounded-xl font-bold text-left transition',
+                  areaName.includes('KPK')
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                    : 'hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20'
+                )}
               >
-                <div>🏔️ Peshawar / KPK</div>
-                <div className="text-[10px] text-slate-400 font-normal">Valley & Pass</div>
+                <div>🏔️ KPK & Valleys</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                  Peshawar, Swat, Passes
+                </div>
+              </button>
+
+              {/* Balochistan & Coast */}
+              <button
+                type="button"
+                onClick={() =>
+                  handleSelectPreset(
+                    'Balochistan & Gwadar Coastal',
+                    { minLat: 24.8, maxLat: 32.2, minLng: 60.8, maxLng: 70.4 },
+                    5,
+                    9
+                  )
+                }
+                className={cn(
+                  'p-2.5 border rounded-xl font-bold text-left transition',
+                  areaName.includes('Balochistan')
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                    : 'hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20'
+                )}
+              >
+                <div>🏜️ Balochistan / Gwadar</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                  Quetta, Gwadar, Ormara
+                </div>
+              </button>
+
+              {/* Gilgit-Baltistan & AJK */}
+              <button
+                type="button"
+                onClick={() =>
+                  handleSelectPreset(
+                    'Gilgit-Baltistan & Kashmir High Peaks',
+                    { minLat: 33.0, maxLat: 37.2, minLng: 73.0, maxLng: 77.8 },
+                    6,
+                    10
+                  )
+                }
+                className={cn(
+                  'p-2.5 border rounded-xl font-bold text-left transition',
+                  areaName.includes('Gilgit')
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                    : 'hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20'
+                )}
+              >
+                <div>🏔️ GB & Kashmir</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                  K2, Skardu, Gilgit, AJK
+                </div>
               </button>
             </div>
           </div>
 
-          {/* Layer Type Selection (Satellite vs Street vs Both) */}
+          {/* Layer Selection (Satellite vs Street vs Both) */}
           <div>
             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">
-              Map Layers to Download
+              Map Imagery Layers
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <button
@@ -324,8 +439,8 @@ export function MapDownloadModal({
                 )}
               >
                 <span className="text-sm">🛰️ Satellite</span>
-                <div className="mt-2 text-[11px] font-semibold">Satellite + Labels</div>
-                <div className="text-[9px] text-slate-400 font-normal">High-res Imagery</div>
+                <div className="mt-2 text-[11px] font-semibold">Satellite + English</div>
+                <div className="text-[9px] text-slate-400 font-normal">ESRI High-Res</div>
               </button>
 
               <button
@@ -340,7 +455,7 @@ export function MapDownloadModal({
               >
                 <span className="text-sm">🗺️ Street Map</span>
                 <div className="mt-2 text-[11px] font-semibold">English Voyager</div>
-                <div className="text-[9px] text-slate-400 font-normal">Clear Roads & POIs</div>
+                <div className="text-[9px] text-slate-400 font-normal">Roads & Urban Areas</div>
               </button>
 
               <button
@@ -355,8 +470,53 @@ export function MapDownloadModal({
               >
                 <span className="text-sm">🏔️ Topo Relief</span>
                 <div className="mt-2 text-[11px] font-semibold">Topographic Map</div>
-                <div className="text-[9px] text-slate-400 font-normal">Contours & Elevation</div>
+                <div className="text-[9px] text-slate-400 font-normal">Contours & Ridges</div>
               </button>
+            </div>
+          </div>
+
+          {/* Pakistan Data & DEM Terrain Bundling Checkboxes */}
+          <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 rounded-xl space-y-2 text-xs">
+            <div className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+              <Database className="w-4 h-4 text-emerald-600" />
+              <span>Offline Pakistan GIS & Elevation Data Bundling</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <label className="flex items-start gap-2 cursor-pointer bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50">
+                <input
+                  type="checkbox"
+                  checked={includePlaces}
+                  onChange={(e) => setIncludePlaces(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-emerald-600 rounded"
+                />
+                <div>
+                  <div className="font-bold text-slate-800 dark:text-slate-100">
+                    Pakistan Places Gazetteer
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Bundles {matchingPlaces.length} places (names, coordinates, military bases, mountain
+                    tops) in JSON & GeoJSON format
+                  </div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2 cursor-pointer bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50">
+                <input
+                  type="checkbox"
+                  checked={includeTerrain}
+                  onChange={(e) => setIncludeTerrain(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-emerald-600 rounded"
+                />
+                <div>
+                  <div className="font-bold text-slate-800 dark:text-slate-100">
+                    DEM Terrain Elevation Data
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Bundles sampled SRTM elevation grid matrix for 100% offline Real LOS Profiling
+                  </div>
+                </div>
+              </label>
             </div>
           </div>
 
@@ -376,7 +536,7 @@ export function MapDownloadModal({
                   step="0.01"
                   value={bounds.minLat}
                   onChange={(e) => setBounds({ ...bounds, minLat: Number(e.target.value) })}
-                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs"
+                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs font-bold"
                 />
               </div>
               <div>
@@ -386,7 +546,7 @@ export function MapDownloadModal({
                   step="0.01"
                   value={bounds.maxLat}
                   onChange={(e) => setBounds({ ...bounds, maxLat: Number(e.target.value) })}
-                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs"
+                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs font-bold"
                 />
               </div>
               <div>
@@ -396,7 +556,7 @@ export function MapDownloadModal({
                   step="0.01"
                   value={bounds.minLng}
                   onChange={(e) => setBounds({ ...bounds, minLng: Number(e.target.value) })}
-                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs"
+                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs font-bold"
                 />
               </div>
               <div>
@@ -406,7 +566,7 @@ export function MapDownloadModal({
                   step="0.01"
                   value={bounds.maxLng}
                   onChange={(e) => setBounds({ ...bounds, maxLng: Number(e.target.value) })}
-                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs"
+                  className="w-full p-1.5 border rounded-lg bg-white dark:bg-slate-800 text-xs font-bold"
                 />
               </div>
             </div>
@@ -430,8 +590,8 @@ export function MapDownloadModal({
                 className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
               />
               <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
-                <span>Z4 (National)</span>
-                <span>Z8 (Regional)</span>
+                <span>Z4 (National Overview)</span>
+                <span>Z8 (Regional View)</span>
               </div>
             </div>
 
@@ -451,8 +611,8 @@ export function MapDownloadModal({
                 className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
               />
               <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
-                <span>Z9 (District)</span>
-                <span>Z14 (Street / Site Detail)</span>
+                <span>Z8 (Province)</span>
+                <span>Z12 (City & Roads)</span>
               </div>
             </div>
           </div>
@@ -461,11 +621,12 @@ export function MapDownloadModal({
           <div className="p-4 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 flex items-center justify-between text-xs">
             <div>
               <div className="font-bold text-blue-950 dark:text-blue-200">
-                Package Estimate: <b>{estimatedTileCount.toLocaleString()} tiles</b>
+                Package Estimate: <b>{estimatedTileCount.toLocaleString()} tiles</b> +{' '}
+                <b>{matchingPlaces.length} Pakistani Places</b>
               </div>
               <div className="text-[11px] text-blue-700 dark:text-blue-400 mt-0.5">
-                Estimated archive size: <b>~{estimatedSizeMb} MB</b> across {activeLayerIds.length}{' '}
-                layer(s)
+                Archive size: <b>~{estimatedSizeMb} MB</b> ({activeLayerIds.length} layer(s) + Places
+                GeoJSON + DEM Terrain)
               </div>
             </div>
             <label className="flex items-center gap-2 font-bold text-blue-800 dark:text-blue-300 cursor-pointer">
@@ -484,16 +645,14 @@ export function MapDownloadModal({
             <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-800 space-y-2 animate-in fade-in">
               <div className="flex justify-between items-center text-xs font-bold">
                 <span className="flex items-center gap-2">
-                  <Download className="w-4 h-4 text-blue-400 animate-bounce" />
-                  {progress.status === 'packaging'
-                    ? 'Creating ZIP Archive...'
-                    : `Downloading Zoom ${progress.currentZoom} Tiles...`}
+                  <Download className="w-4 h-4 text-emerald-400 animate-bounce" />
+                  {progress.stepDescription || `Downloading Zoom ${progress.currentZoom} Tiles...`}
                 </span>
-                <span className="font-mono text-blue-400">{progress.percent}%</span>
+                <span className="font-mono text-emerald-400">{progress.percent}%</span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                 <div
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-150"
+                  className="bg-emerald-500 h-2 rounded-full transition-all duration-150"
                   style={{ width: `${progress.percent}%` }}
                 />
               </div>
@@ -515,10 +674,10 @@ export function MapDownloadModal({
               <div className="flex items-center gap-2.5">
                 <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                 <div>
-                  <div className="font-bold">Offline Map Package Ready!</div>
+                  <div className="font-bold">Pakistan Offline Map Bundle Ready!</div>
                   <div className="text-[11px] text-emerald-700 dark:text-emerald-400">
                     Saved <b>{downloadResult.fileName}</b> ({downloadResult.tileCount.toLocaleString()}{' '}
-                    tiles)
+                    tiles + {downloadResult.placesCount} places gazetteer + DEM terrain)
                   </div>
                 </div>
               </div>
@@ -544,7 +703,7 @@ export function MapDownloadModal({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-            Compatible with Offline GIS Engine & PMTiles
+            Full Offline Gazetteer & Terrain DEM Included
           </div>
           <div className="flex gap-2">
             {isDownloading ? (
@@ -567,10 +726,10 @@ export function MapDownloadModal({
                 <button
                   type="button"
                   onClick={handleStartDownload}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Start Download (~{estimatedSizeMb} MB)</span>
+                  <span>Download Bundle (~{estimatedSizeMb} MB)</span>
                 </button>
               </>
             )}
