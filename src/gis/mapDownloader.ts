@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { ONLINE_MAP_LAYERS } from './mapLayers';
 import { PAKISTAN_CITIES } from '../lib/pakistanCitiesData';
 import { GeoLocation } from '../lib/offlineGeo';
+import { saveTilesToOfflineStore } from './offlineTileStore';
 
 export interface DownloadArea {
   name: string;
@@ -378,6 +379,19 @@ export async function downloadOfflineMapBundle(
     currentZoom: area.maxZoom,
     status: 'completed',
     stepDescription: 'Download complete!',
+  });
+
+  // Automatically persist to offline store (IndexedDB & Memory)
+  await saveTilesToOfflineStore(tileBlobsMap, {
+    name: area.name,
+    tileCount: tileBlobsMap.size,
+    bounds: {
+      minLat: area.minLat,
+      maxLat: area.maxLat,
+      minLng: area.minLng,
+      maxLng: area.maxLng,
+    },
+    placesCount: places.length,
   });
 
   return { blob: zipBlob, fileName, tileBlobsMap, placesCount: places.length };

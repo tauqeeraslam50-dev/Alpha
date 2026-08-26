@@ -30,33 +30,27 @@ import { Site } from '../types';
 const pmtilesProtocol = new Protocol();
 maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
 
-// Global in-memory uploaded PNG tiles storage
-const uploadedTileBlobs = new Map<string, Blob>();
+import {
+  getOfflineTileBlob,
+  restoreOfflineTilesFromStore,
+  importOfflineZipArchive,
+  clearAllOfflineTiles,
+  memoryTileCache,
+  saveTilesToOfflineStore,
+} from '../gis/offlineTileStore';
+
 let isCustomPngProtocolRegistered = false;
 
 if (!isCustomPngProtocolRegistered) {
   maplibregl.addProtocol('uploaded-png', async (params) => {
     try {
       const url = new URL(params.url);
-      const z = url.searchParams.get('z');
-      const x = url.searchParams.get('x');
-      const y = url.searchParams.get('y');
+      const z = url.searchParams.get('z') || '';
+      const x = url.searchParams.get('x') || '';
+      const y = url.searchParams.get('y') || '';
       const layer = url.searchParams.get('layer') || '';
 
-      const keysToTry = [
-        layer ? `${layer}_${z}_${x}_${y}` : '',
-        `${z}_${x}_${y}`,
-        layer ? `${layer}/${z}/${x}/${y}` : '',
-        `${z}/${x}/${y}`,
-      ].filter(Boolean);
-
-      let foundBlob: Blob | undefined;
-      for (const k of keysToTry) {
-        if (uploadedTileBlobs.has(k)) {
-          foundBlob = uploadedTileBlobs.get(k);
-          break;
-        }
-      }
+      const foundBlob = await getOfflineTileBlob(z, x, y, layer);
 
       if (foundBlob) {
         const buffer = await foundBlob.arrayBuffer();
@@ -515,17 +509,53 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     [onStatus, rasterOpacity]
   );
 
-  // Restore Web Uploaded tiles if already in memory on mount
+  // Restore Offline Tiles from IndexedDB on component mount
   useEffect(() => {
-    if (activeFileSource === 'web-folder' && uploadedTileBlobs.size > 0) {
-      applyWebUploadedTiles(uploadedTileBlobs.size, activeFileName || `Uploaded Tiles (${uploadedTileBlobs.size})`);
-    }
-  }, [activeFileSource, activeFileName, applyWebUploadedTiles]);
+    restoreOfflineTilesFromStore().then(({ tileCount, metadata }) => {
+      if (tileCount > 0) {
+        const label = metadata?.name || `Cached Offline Tiles (${tileCount.toLocaleString()})`;
+        applyWebUploadedTiles(tileCount, label);
+        if (metadata?.bounds) {
+          const b = metadata.bounds;
+          mapRef.current?.fitBounds(
+            [
+              [b.minLng, b.minLat],
+              [b.maxLng, b.maxLat],
+            ],
+            { padding: 40, duration: 800 }
+          );
+        }
+      }
+    });
+  }, [applyWebUploadedTiles]);
 
-  // Manual File Upload Handlers (PMTiles & PNG Directory)
-  const handlePMTilesFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Manual File Upload Handlers (PMTiles, ZIP & PNG Directory)
+  const handlePMTilesFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      onStatus?.(`Unpacking offline ZIP archive "${file.name}"...`);
+      try {
+        const res = await importOfflineZipArchive(file);
+        applyWebUploadedTiles(res.tileCount, res.name);
+        if (res.metadata?.bounds) {
+          const b = res.metadata.bounds;
+          mapRef.current?.fitBounds(
+            [
+              [b.minLng, b.minLat],
+              [b.maxLng, b.maxLat],
+            ],
+            { padding: 40, duration: 800 }
+          );
+        }
+        onStatus?.(`Loaded ${res.tileCount.toLocaleString()} tiles from ${file.name}`);
+      } catch (err: any) {
+        setError(err.message || 'Failed to unpack ZIP archive');
+      }
+      e.target.value = '';
+      return;
+    }
 
     const fileSource = new FileSource(file);
     const pmtiles = new PMTiles(fileSource);
@@ -537,10 +567,11 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     e.target.value = '';
   };
 
-  const handleFolderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
 
+    const tilesMap = new Map<string, Blob>();
     let tileCount = 0;
     const reg = /(?:^|\/|\\)(?:([a-zA-Z0-9_-]+)\/)?(\d+)\/(\d+)\/(\d+)\.(png|jpg|jpeg|webp)$/i;
 
@@ -554,8 +585,12 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         const x = match[3];
         const y = match[4];
 
-        if (layer) uploadedTileBlobs.set(`${layer}_${z}_${x}_${y}`, file);
-        uploadedTileBlobs.set(`${z}_${x}_${y}`, file);
+        if (layer) {
+          tilesMap.set(`${layer}_${z}_${x}_${y}`, file);
+          tilesMap.set(`${layer}/${z}/${x}/${y}`, file);
+        }
+        tilesMap.set(`${z}_${x}_${y}`, file);
+        tilesMap.set(`${z}/${x}/${y}`, file);
         tileCount++;
       }
     }
@@ -565,10 +600,9 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       return;
     }
 
-    applyWebUploadedTiles(
-      tileCount,
-      `${fileList[0].webkitRelativePath?.split('/')[0] || 'Uploaded Tiles'} (${tileCount} tiles)`
-    );
+    const folderLabel = `${fileList[0].webkitRelativePath?.split('/')[0] || 'Uploaded Tiles'} (${tileCount.toLocaleString()} tiles)`;
+    await saveTilesToOfflineStore(tilesMap, { name: folderLabel, tileCount });
+    applyWebUploadedTiles(tileCount, folderLabel);
     e.target.value = '';
   };
 
@@ -589,6 +623,30 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     const fileList = Array.from(e.dataTransfer.files) as File[];
     if (fileList.length === 0) return;
 
+    // Check if ZIP archive
+    const zipFile = fileList.find((f) => f.name.toLowerCase().endsWith('.zip'));
+    if (zipFile) {
+      onStatus?.(`Unpacking offline ZIP archive "${zipFile.name}"...`);
+      try {
+        const res = await importOfflineZipArchive(zipFile);
+        applyWebUploadedTiles(res.tileCount, res.name);
+        if (res.metadata?.bounds) {
+          const b = res.metadata.bounds;
+          mapRef.current?.fitBounds(
+            [
+              [b.minLng, b.minLat],
+              [b.maxLng, b.maxLat],
+            ],
+            { padding: 40, duration: 800 }
+          );
+        }
+        onStatus?.(`Loaded ${res.tileCount.toLocaleString()} tiles from ${zipFile.name}`);
+      } catch (err: any) {
+        setError(err.message || 'Failed to unpack ZIP archive');
+      }
+      return;
+    }
+
     // Check if PMTiles file
     const pmtilesFile = fileList.find((f) => f.name.toLowerCase().endsWith('.pmtiles'));
     if (pmtilesFile) {
@@ -602,6 +660,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     }
 
     // Check if PNG tile batch
+    const tilesMap = new Map<string, Blob>();
     let tileCount = 0;
     const reg = /(?:^|\/|\\)(?:([a-zA-Z0-9_-]+)\/)?(\d+)\/(\d+)\/(\d+)\.(png|jpg|jpeg|webp)$/i;
 
@@ -612,16 +671,22 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         const z = match[2];
         const x = match[3];
         const y = match[4];
-        if (layer) uploadedTileBlobs.set(`${layer}_${z}_${x}_${y}`, file);
-        uploadedTileBlobs.set(`${z}_${x}_${y}`, file);
+        if (layer) {
+          tilesMap.set(`${layer}_${z}_${x}_${y}`, file);
+          tilesMap.set(`${layer}/${z}/${x}/${y}`, file);
+        }
+        tilesMap.set(`${z}_${x}_${y}`, file);
+        tilesMap.set(`${z}/${x}/${y}`, file);
         tileCount++;
       }
     });
 
     if (tileCount > 0) {
-      applyWebUploadedTiles(tileCount, `Dropped Tile Bundle (${tileCount} tiles)`);
+      const label = `Dropped Tiles (${tileCount.toLocaleString()} tiles)`;
+      await saveTilesToOfflineStore(tilesMap, { name: label, tileCount });
+      applyWebUploadedTiles(tileCount, label);
     } else {
-      setError('Dropped item was neither a .pmtiles archive nor a standard z/x/y.png tile set.');
+      setError('Dropped item was neither a .pmtiles archive, a .zip archive, nor a standard z/x/y.png tile set.');
     }
   };
 
@@ -673,7 +738,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     setActiveFileSource('none');
     setHeaderInfo(null);
     setError('');
-    uploadedTileBlobs.clear();
+    clearAllOfflineTiles();
     setUploadedTileCount(0);
     localStorage.removeItem('rnms_offline_file_path');
     localStorage.removeItem('rnms_offline_map_folder');
@@ -998,7 +1063,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       <input
         ref={pmtilesInputRef}
         type="file"
-        accept=".pmtiles"
+        accept=".pmtiles,.zip"
         onChange={handlePMTilesFileUpload}
         className="hidden"
       />
@@ -1028,7 +1093,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
         {/* Offline Upload & Layer Controls */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs">
-          {/* Upload PMTiles Button */}
+          {/* Upload PMTiles / ZIP Button */}
           <button
             type="button"
             onClick={() => {
@@ -1036,10 +1101,10 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
               else pmtilesInputRef.current?.click();
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition"
-            title="Upload or Open PMTiles (.pmtiles)"
+            title="Upload or Open PMTiles (.pmtiles) or ZIP Offline Package (.zip)"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Upload PMTiles</span>
+            <span>Upload (.zip / .pmtiles)</span>
           </button>
 
           {/* Upload PNG Tiles Folder Button */}
@@ -1053,7 +1118,29 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             title="Upload or Open PNG Tiles Folder (z/x/y.png)"
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>Upload PNG Folder</span>
+            <span className="hidden sm:inline">Upload Folder</span>
+          </button>
+
+          {/* Reload Stored Tiles Button */}
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await restoreOfflineTilesFromStore();
+              if (res.tileCount > 0) {
+                applyWebUploadedTiles(res.tileCount, res.metadata?.name || `Cached Tiles (${res.tileCount})`);
+                if (res.metadata?.bounds) {
+                  const b = res.metadata.bounds;
+                  mapRef.current?.fitBounds([[b.minLng, b.minLat], [b.maxLng, b.maxLat]], { padding: 40 });
+                }
+                onStatus?.(`Reloaded ${res.tileCount.toLocaleString()} offline tiles from cache`);
+              } else {
+                onStatus?.('No offline tiles found in cache. Upload a .zip or .pmtiles package.');
+              }
+            }}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            title="Reload offline tiles from cache"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
 
           {/* Quick PMTiles File Switcher (if multiple exist in scanned folder) */}
