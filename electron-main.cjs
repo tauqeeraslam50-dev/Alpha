@@ -106,6 +106,36 @@ app.whenReady().then(() => {
           return fileResponse(p, request, mime);
         }
       }
+
+      // Seamless Parent Tile Fallback for High Zoom Levels
+      let pZ = parseInt(z, 10);
+      let pX = parseInt(x, 10);
+      let pY = parseInt(y, 10);
+      while (pZ > 4) {
+        pZ -= 1;
+        pX = Math.floor(pX / 2);
+        pY = Math.floor(pY / 2);
+
+        const parentCandidates = [
+          layer ? path.join(root, layer, String(pZ), String(pX), `${pY}.png`) : null,
+          layer ? path.join(root, layer, String(pZ), String(pX), `${pY}.jpg`) : null,
+          layer ? path.join(root, layer, String(pZ), String(pX), `${pY}.jpeg`) : null,
+          layer ? path.join(root, layer, String(pZ), String(pX), `${pY}.webp`) : null,
+          path.join(root, String(pZ), String(pX), `${pY}.png`),
+          path.join(root, String(pZ), String(pX), `${pY}.jpg`),
+          path.join(root, String(pZ), String(pX), `${pY}.jpeg`),
+          path.join(root, String(pZ), String(pX), `${pY}.webp`),
+        ].filter(Boolean);
+
+        for (const p of parentCandidates) {
+          if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+            const ext = path.extname(p).toLowerCase();
+            const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+            return fileResponse(p, request, mime);
+          }
+        }
+      }
+
       return new Response('Tile not found', { status: 404 });
     } catch (error) {
       console.error('local-map:', error);

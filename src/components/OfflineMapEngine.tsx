@@ -34,6 +34,7 @@ import { useAppContext } from '../context/AppContext';
 import { MapSearchBar } from './MapSearchBar';
 import { calculateDistanceKm, calculateBearing, calculateFSPL } from '../lib/utils';
 import { analyzeLOS, type LOSAnalysisResult } from '../lib/losUtils';
+import { PAKISTAN_CITIES } from '../lib/pakistanCitiesData';
 import { cn } from '../lib/utils';
 import { Site, RFLink } from '../types';
 
@@ -54,29 +55,56 @@ let isCustomPngProtocolRegistered = false;
 
 if (!isCustomPngProtocolRegistered) {
   maplibregl.addProtocol('uploaded-png', async (params) => {
-    try {
-      const url = new URL(params.url);
-      const z = url.searchParams.get('z') || '';
-      const x = url.searchParams.get('x') || '';
-      const y = url.searchParams.get('y') || '';
-      const layer = url.searchParams.get('layer') || '';
+    const url = new URL(params.url);
+    const z = parseInt(url.searchParams.get('z') || '0', 10);
+    const x = parseInt(url.searchParams.get('x') || '0', 10);
+    const y = parseInt(url.searchParams.get('y') || '0', 10);
+    const layer = url.searchParams.get('layer') || '';
 
-      // 1. Check custom uploaded & IndexedDB cached tiles
-      const foundBlob = await getOfflineTileBlob(z, x, y, layer);
+    // 1. Direct match in memory cache / IndexedDB
+    const foundBlob = await getOfflineTileBlob(z, x, y, layer);
+    if (foundBlob) {
+      const buffer = await foundBlob.arrayBuffer();
+      return { data: new Uint8Array(buffer) };
+    }
 
-      if (foundBlob) {
-        const buffer = await foundBlob.arrayBuffer();
+    // 2. Direct match in bundled public tiles
+    const bundledPaths = [
+      `./tiles/${z}/${x}/${y}.png`,
+      `/tiles/${z}/${x}/${y}.png`,
+      `tiles/${z}/${x}/${y}.png`,
+    ];
+    for (const p of bundledPaths) {
+      try {
+        const res = await fetch(p);
+        if (res.ok) {
+          const buffer = await res.arrayBuffer();
+          return { data: new Uint8Array(buffer) };
+        }
+      } catch {}
+    }
+
+    // 3. Seamless Parent Tile Fallback (if zooming beyond maxzoom)
+    let pZ = z;
+    let pX = x;
+    let pY = y;
+    while (pZ > 4) {
+      pZ -= 1;
+      pX = Math.floor(pX / 2);
+      pY = Math.floor(pY / 2);
+
+      const parentBlob = await getOfflineTileBlob(pZ, pX, pY, layer);
+      if (parentBlob) {
+        const buffer = await parentBlob.arrayBuffer();
         return { data: new Uint8Array(buffer) };
       }
 
-      // 2. Check bundled embedded Pakistan offline tiles (/tiles/{z}/{x}/{y}.png)
-      const bundledPaths = [
-        `./tiles/${z}/${x}/${y}.png`,
-        `/tiles/${z}/${x}/${y}.png`,
-        `tiles/${z}/${x}/${y}.png`,
+      const parentBundled = [
+        `./tiles/${pZ}/${pX}/${pY}.png`,
+        `/tiles/${pZ}/${pX}/${pY}.png`,
+        `tiles/${pZ}/${pX}/${pY}.png`,
       ];
-
-      for (const p of bundledPaths) {
+      for (const p of parentBundled) {
         try {
           const res = await fetch(p);
           if (res.ok) {
@@ -85,17 +113,10 @@ if (!isCustomPngProtocolRegistered) {
           }
         } catch {}
       }
-
-      // Return 1x1 transparent PNG if tile not found in offline bundle
-      const transparentPixel = new Uint8Array([
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
-        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
-        13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
-      ]);
-      return { data: transparentPixel };
-    } catch {
-      return { data: new Uint8Array(0) };
     }
+
+    // Throw error so MapLibre knows tile is missing and cleanly keeps parent tile
+    throw new Error(`Tile not found: ${z}/${x}/${y}`);
   });
   isCustomPngProtocolRegistered = true;
 }
@@ -174,6 +195,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
   // Tool toggles
   const [showSites, setShowSites] = useState<boolean>(true);
+  const [showPlaces, setShowPlaces] = useState<boolean>(true);
   const [showLinks, setShowLinks] = useState<boolean>(true);
   const [showLinkMetrics, setShowLinkMetrics] = useState<boolean>(true);
   const [selectedLinkInfo, setSelectedLinkInfo] = useState<{
@@ -309,7 +331,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       center: [69.3451, 30.3753],
       zoom: 5,
       minZoom: 2,
-      maxZoom: 20,
+      maxZoom: 22,
       style: {
         version: 8,
         sources: {},
@@ -409,6 +431,8 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             type: 'raster',
             url: sourceUrl,
             tileSize: 256,
+            minzoom: header.minZoom || 0,
+            maxzoom: header.maxZoom || 14,
           });
           map.addLayer({
             id: 'rnms-offline-raster',
@@ -416,6 +440,8 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             source: sourceId,
             paint: {
               'raster-opacity': rasterOpacity,
+              'raster-resampling': 'linear',
+              'raster-fade-duration': 0,
             },
           });
         } else {
@@ -576,13 +602,17 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       tiles: [formatLocalTileTemplate(mapFolder)],
       tileSize: 256,
       minzoom: 0,
-      maxzoom: 22,
+      maxzoom: 14,
     });
     map.addLayer({
       id: 'rnms-offline-png-layer',
       type: 'raster',
       source: sourceId,
-      paint: { 'raster-opacity': rasterOpacity },
+      paint: {
+        'raster-opacity': rasterOpacity,
+        'raster-resampling': 'linear',
+        'raster-fade-duration': 0,
+      },
     });
 
     onStatus?.(`Connected to local tile folder: ${mapFolder}`);
@@ -612,13 +642,17 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       tiles: ['uploaded-png://tile?z={z}&x={x}&y={y}'],
       tileSize: 256,
       minzoom: 0,
-      maxzoom: 20,
+      maxzoom: 10,
     });
     map.addLayer({
       id: 'rnms-embedded-png-layer',
       type: 'raster',
       source: sourceId,
-      paint: { 'raster-opacity': rasterOpacity },
+      paint: {
+        'raster-opacity': rasterOpacity,
+        'raster-resampling': 'linear',
+        'raster-fade-duration': 0,
+      },
     });
 
     setActiveFileSource('embedded');
@@ -659,13 +693,17 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         tiles: ['uploaded-png://tile?z={z}&x={x}&y={y}'],
         tileSize: 256,
         minzoom: 0,
-        maxzoom: 22,
+        maxzoom: 12,
       });
       map.addLayer({
         id: 'rnms-web-png-layer',
         type: 'raster',
         source: sourceId,
-        paint: { 'raster-opacity': rasterOpacity },
+        paint: {
+          'raster-opacity': rasterOpacity,
+          'raster-resampling': 'linear',
+          'raster-fade-duration': 0,
+        },
       });
 
       setActiveFileSource('web-folder');
@@ -1241,6 +1279,132 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       markersRef.current.push(marker);
     });
   }, [sites, showSites, isConnecting, connectingSource]);
+
+  // Render Pakistan Cities, Towns, Passes & Landmarks Vector Overlay on Offline Map
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!map.isStyleLoaded()) {
+      map.once('load', () => {
+        // Trigger once style loaded
+      });
+      return;
+    }
+
+    const sourceId = 'rnms-offline-places-source';
+    const circleLayerId = 'rnms-offline-places-circles';
+    const labelLayerId = 'rnms-offline-places-labels';
+
+    if (map.getLayer(labelLayerId)) map.removeLayer(labelLayerId);
+    if (map.getLayer(circleLayerId)) map.removeLayer(circleLayerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    if (!showPlaces) return;
+
+    const placesGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+      type: 'FeatureCollection',
+      features: PAKISTAN_CITIES.map((c, i) => ({
+        type: 'Feature',
+        id: i,
+        properties: {
+          name: c.name,
+          category: c.category,
+          elevation: c.elevationM,
+          color:
+            c.category === 'Cantonment/Base'
+              ? '#ef4444'
+              : c.category === 'Mountain/Pass'
+              ? '#f59e0b'
+              : '#06b6d4',
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [c.lng, c.lat],
+        },
+      })),
+    };
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: placesGeoJSON,
+    });
+
+    // Place Circle Nodes
+    map.addLayer({
+      id: circleLayerId,
+      type: 'circle',
+      source: sourceId,
+      minzoom: 4,
+      maxzoom: 22,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 8, 4.5, 12, 6.5, 16, 8],
+        'circle-color': ['get', 'color'],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#ffffff',
+        'circle-opacity': 0.85,
+      },
+    });
+
+    // Place Text Labels
+    map.addLayer({
+      id: labelLayerId,
+      type: 'symbol',
+      source: sourceId,
+      minzoom: 5,
+      maxzoom: 22,
+      layout: {
+        'text-field': ['concat', ['get', 'name'], '\n', ['to-string', ['get', 'elevation']], 'm AMSL'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 5, 9, 8, 11, 12, 13, 16, 15],
+        'text-offset': [0, 1.2],
+        'text-anchor': 'top',
+        'text-optional': true,
+        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+      },
+      paint: {
+        'text-color': theme === 'light' ? '#0f172a' : '#f8fafc',
+        'text-halo-color': theme === 'light' ? '#ffffff' : '#020617',
+        'text-halo-width': 2.5,
+      },
+    });
+
+    // Click handler for places popup
+    const onPlaceClick = (e: maplibregl.MapLayerMouseEvent) => {
+      if (!e.features || e.features.length === 0) return;
+      const feat = e.features[0];
+      const props = feat.properties as any;
+      const coords = (feat.geometry as GeoJSON.Point).coordinates;
+
+      new maplibregl.Popup({ offset: 12 })
+        .setLngLat([coords[0], coords[1]])
+        .setHTML(`
+          <div style="padding: 6px 8px; font-family: system-ui, sans-serif; min-width: 190px;">
+            <div style="font-weight: 800; font-size: 13px; color: #0f172a; margin-bottom: 2px;">${props.name}</div>
+            <div style="font-size: 10px; font-weight: 700; color: ${props.color}; text-transform: uppercase; margin-bottom: 6px;">${props.category}</div>
+            <div style="font-size: 11px; color: #475569; font-family: monospace; line-height: 1.5;">
+              <div>🏔️ Elevation: <b>${props.elevation}m AMSL</b></div>
+              <div>📍 Coords: ${coords[1].toFixed(4)}°N, ${coords[0].toFixed(4)}°E</div>
+            </div>
+          </div>
+        `)
+        .addTo(map);
+    };
+
+    map.on('click', circleLayerId, onPlaceClick);
+    map.on('mouseenter', circleLayerId, () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', circleLayerId, () => {
+      map.getCanvas().style.cursor = '';
+    });
+
+    return () => {
+      map.off('click', circleLayerId, onPlaceClick);
+      if (map.getLayer(labelLayerId)) map.removeLayer(labelLayerId);
+      if (map.getLayer(circleLayerId)) map.removeLayer(circleLayerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+    };
+  }, [showPlaces, theme]);
 
   // Render Site-to-Site RF Links & Connectivity on Offline Map
   useEffect(() => {
@@ -1949,6 +2113,22 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
           >
             <Radio className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sites ({sites.length})</span>
+          </button>
+
+          {/* Toggle Pakistan Places & Cities */}
+          <button
+            type="button"
+            onClick={() => setShowPlaces(!showPlaces)}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1.5 font-semibold rounded-lg border transition',
+              showPlaces
+                ? 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/60 dark:border-amber-800 dark:text-amber-300'
+                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            )}
+            title="Toggle Pakistan Cities, Landmarks, and Places overlay"
+          >
+            <MapPin className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">Places ({PAKISTAN_CITIES.length})</span>
           </button>
 
           {/* Toggle RF Links Connectivity */}
