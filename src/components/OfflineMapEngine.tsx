@@ -19,12 +19,17 @@ import {
   Sparkles,
   Trash2,
   RotateCcw,
+  Activity,
+  ArrowRight,
+  X,
+  Wifi,
+  Zap,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { MapSearchBar } from './MapSearchBar';
-import { calculateDistanceKm, calculateBearing } from '../lib/utils';
+import { calculateDistanceKm, calculateBearing, calculateFSPL } from '../lib/utils';
 import { cn } from '../lib/utils';
-import { Site } from '../types';
+import { Site, RFLink } from '../types';
 
 // Register PMTiles Protocol globally
 const pmtilesProtocol = new Protocol();
@@ -119,10 +124,11 @@ function toDMS(val: number, isLat: boolean): string {
 }
 
 export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => void }) {
-  const { sites, theme } = useAppContext();
+  const { sites, links, theme, setCurrentView } = useAppContext();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | undefined>(undefined);
   const markersRef = useRef<MapLibreMarker[]>([]);
+  const linkMarkersRef = useRef<MapLibreMarker[]>([]);
   const targetMarkerRef = useRef<MapLibreMarker | null>(null);
 
   // File Inputs
@@ -156,11 +162,26 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   const [files, setFiles] = useState<OfflineFile[]>([]);
   const [uploadedTileCount, setUploadedTileCount] = useState<number>(0);
   const [headerInfo, setHeaderInfo] = useState<Header | null>(null);
-  const [offlineStyle, setOfflineStyle] = useState<'satellite' | 'street'>('satellite');
+  const [offlineStyle, setOfflineStyle] = useState<'satellite' | 'street'>('street');
   const [error, setError] = useState<string>('');
 
   // Tool toggles
   const [showSites, setShowSites] = useState<boolean>(true);
+  const [showLinks, setShowLinks] = useState<boolean>(true);
+  const [showLinkMetrics, setShowLinkMetrics] = useState<boolean>(true);
+  const [selectedLinkInfo, setSelectedLinkInfo] = useState<{
+    link: RFLink;
+    source: Site;
+    target: Site;
+    distanceKm: number;
+    snr: number;
+    rsl: number;
+    fspl: number;
+    status: 'EXCELLENT' | 'GOOD' | 'MARGINAL' | 'CRITICAL' | 'OFFLINE';
+    color: string;
+    bearingAtoB: number;
+    bearingBtoA: number;
+  } | null>(null);
   const [showCoverageRings, setShowCoverageRings] = useState<boolean>(false);
   const [coverageRadiusKm, setCoverageRadiusKm] = useState<number>(25);
   const [isMeasuring, setIsMeasuring] = useState<boolean>(false);
@@ -944,6 +965,173 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     });
   }, [sites, showSites]);
 
+  // Render Site-to-Site RF Links & Connectivity on Offline Map
+  useEffect(() => {
+    // Clear previous midpoint badges
+    linkMarkersRef.current.forEach((m) => m.remove());
+    linkMarkersRef.current = [];
+
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!map.isStyleLoaded()) {
+      map.once('load', () => {
+        // Trigger re-render once style is ready
+      });
+      return;
+    }
+
+    const sourceId = 'rnms-offline-links-source';
+    const glowLayerId = 'rnms-offline-links-glow';
+    const lineLayerId = 'rnms-offline-links-line';
+
+    if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+    if (map.getLayer(glowLayerId)) map.removeLayer(glowLayerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    if (!showLinks || links.length === 0) return;
+
+    const features: any[] = [];
+
+    links.forEach((link) => {
+      const s = sites.find((site) => site.id === link.sourceSiteId);
+      const t = sites.find((site) => site.id === link.targetSiteId);
+      if (!s || !t || isNaN(s.lat) || isNaN(s.lng) || isNaN(t.lat) || isNaN(t.lng)) return;
+
+      const distanceKm = calculateDistanceKm(s.lat, s.lng, t.lat, t.lng);
+      const freqMHz = link.frequencyMHz || 400;
+      const fspl = calculateFSPL(distanceKm, freqMHz);
+      const txPower = link.txPowerDBm ?? 43;
+      const txGain = link.txAntennaGainDBi ?? 6;
+      const rxGain = link.rxAntennaGainDBi ?? 6;
+      const txLoss = link.txCableLossDB ?? 1.5;
+      const rxLoss = link.rxCableLossDB ?? 1.5;
+      const rsl = txPower + txGain + rxGain - txLoss - rxLoss - fspl;
+      const bandwidthHz = (link.channelBandwidthKHz || 12.5) * 1000;
+      const noiseFloor = -174 + 10 * Math.log10(bandwidthHz);
+      const snr = rsl - noiseFloor;
+      const bearingAtoB = calculateBearing(s.lat, s.lng, t.lat, t.lng);
+      const bearingBtoA = (bearingAtoB + 180) % 360;
+
+      let status: 'EXCELLENT' | 'GOOD' | 'MARGINAL' | 'CRITICAL' | 'OFFLINE' = 'GOOD';
+      let color = '#22c55e'; // green
+
+      if (s.status === 'offline' || t.status === 'offline') {
+        status = 'OFFLINE';
+        color = '#94a3b8'; // gray
+      } else if (snr >= 35) {
+        status = 'EXCELLENT';
+        color = '#10b981'; // emerald
+      } else if (snr >= 22) {
+        status = 'GOOD';
+        color = '#22c55e'; // green
+      } else if (snr >= 12) {
+        status = 'MARGINAL';
+        color = '#f59e0b'; // amber
+      } else {
+        status = 'CRITICAL';
+        color = '#ef4444'; // red
+      }
+
+      const linkInfo = {
+        link,
+        source: s,
+        target: t,
+        distanceKm,
+        snr,
+        rsl,
+        fspl,
+        status,
+        color,
+        bearingAtoB,
+        bearingBtoA,
+      };
+
+      features.push({
+        type: 'Feature',
+        properties: {
+          id: link.id,
+          color,
+          status,
+          distanceKm: distanceKm.toFixed(1),
+          snr: snr.toFixed(1),
+          rsl: rsl.toFixed(1),
+          sourceName: s.name,
+          targetName: t.name,
+          freqMHz,
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [s.lng, s.lat],
+            [t.lng, t.lat],
+          ],
+        },
+      });
+
+      // Interactive Midpoint Air Distance & SNR badge
+      if (showLinkMetrics) {
+        const midLng = (s.lng + t.lng) / 2;
+        const midLat = (s.lat + t.lat) / 2;
+
+        const el = document.createElement('div');
+        el.className = 'rnms-link-badge select-none cursor-pointer transition-transform hover:scale-110';
+        el.innerHTML = `
+          <div style="background: rgba(15, 23, 42, 0.94); border: 1.5px solid ${color}; border-radius: 6px; padding: 2.5px 7px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(4px);">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: ${color}; box-shadow: 0 0 5px ${color};"></span>
+            <span>${distanceKm.toFixed(1)} km</span>
+            <span style="color: #64748b;">•</span>
+            <span style="color: ${color};">${snr.toFixed(1)} dB SNR</span>
+          </div>
+        `;
+
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          setSelectedLinkInfo(linkInfo);
+        });
+
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([midLng, midLat])
+          .addTo(map);
+
+        linkMarkersRef.current.push(marker);
+      }
+    });
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features,
+      },
+    });
+
+    // Outer glow
+    map.addLayer({
+      id: glowLayerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 8,
+        'line-opacity': 0.25,
+        'line-blur': 3,
+      },
+    });
+
+    // Inner sharp link line
+    map.addLayer({
+      id: lineLayerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 3,
+        'line-opacity': 0.95,
+      },
+    });
+  }, [links, sites, showLinks, showLinkMetrics]);
+
   // Render Coverage Rings
   useEffect(() => {
     const map = mapRef.current;
@@ -1410,6 +1598,40 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             <span className="hidden sm:inline">Sites ({sites.length})</span>
           </button>
 
+          {/* Toggle RF Links Connectivity */}
+          <button
+            type="button"
+            onClick={() => setShowLinks(!showLinks)}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1.5 font-semibold rounded-lg border transition',
+              showLinks
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-300'
+                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            )}
+            title="Toggle Site-to-Site RF Links Connectivity Lines"
+          >
+            <Wifi className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Links ({links.length})</span>
+          </button>
+
+          {/* Toggle Link Metrics (Air Distance & SNR) */}
+          {showLinks && links.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowLinkMetrics(!showLinkMetrics)}
+              className={cn(
+                'flex items-center gap-1 px-2 py-1.5 font-semibold rounded-lg border transition text-[11px]',
+                showLinkMetrics
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300'
+                  : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+              )}
+              title="Toggle Air Distance & SNR Labels on Links"
+            >
+              <Zap className="w-3 h-3" />
+              <span className="hidden sm:inline">SNR & Dist</span>
+            </button>
+          )}
+
           {/* Toggle Coverage Rings */}
           <button
             type="button"
@@ -1666,6 +1888,118 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             <div className="text-[11px] text-slate-500 pt-1">
               Tip: You can also drag and drop <b>.zip</b> packages, <b>.pmtiles</b>, or tile folders directly onto this window.
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selected RF Link Details Inspector Card */}
+      {selectedLinkInfo && (
+        <div className="absolute bottom-12 left-3 z-30 w-80 sm:w-96 bg-slate-900/95 text-white rounded-2xl border border-slate-700 shadow-2xl p-4 backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-full animate-pulse shadow-sm"
+                style={{ backgroundColor: selectedLinkInfo.color }}
+              />
+              <span className="font-bold text-xs text-slate-200 uppercase tracking-wider">
+                RF Link Connectivity
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase"
+                style={{
+                  backgroundColor: `${selectedLinkInfo.color}25`,
+                  color: selectedLinkInfo.color,
+                  border: `1px solid ${selectedLinkInfo.color}60`,
+                }}
+              >
+                {selectedLinkInfo.status}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedLinkInfo(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Site-to-Site Nodes */}
+          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60 mb-3 flex items-center justify-between text-xs">
+            <div className="min-w-0">
+              <div className="font-bold text-blue-400 truncate">{selectedLinkInfo.source.name}</div>
+              <div className="text-[10px] text-slate-400">{selectedLinkInfo.source.elevation}m AMSL</div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-500 mx-2 shrink-0" />
+            <div className="text-right min-w-0">
+              <div className="font-bold text-emerald-400 truncate">{selectedLinkInfo.target.name}</div>
+              <div className="text-[10px] text-slate-400">{selectedLinkInfo.target.elevation}m AMSL</div>
+            </div>
+          </div>
+
+          {/* Key RF Connectivity Metrics */}
+          <div className="grid grid-cols-2 gap-2 text-xs font-mono mb-3">
+            <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+              <div className="text-[10px] text-slate-400 font-sans">Air Distance</div>
+              <div className="font-bold text-white text-sm">
+                {selectedLinkInfo.distanceKm.toFixed(2)} km
+              </div>
+              <div className="text-[9px] text-slate-500 font-sans">
+                {(selectedLinkInfo.distanceKm * 0.621371).toFixed(2)} miles
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+              <div className="text-[10px] text-slate-400 font-sans">SNR Value</div>
+              <div className="font-bold text-sm" style={{ color: selectedLinkInfo.color }}>
+                {selectedLinkInfo.snr.toFixed(1)} dB
+              </div>
+              <div className="text-[9px] text-slate-500 font-sans">Signal-to-Noise</div>
+            </div>
+
+            <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+              <div className="text-[10px] text-slate-400 font-sans">Received Signal (RSL)</div>
+              <div className="font-bold text-white text-xs">{selectedLinkInfo.rsl.toFixed(1)} dBm</div>
+              <div className="text-[9px] text-slate-500 font-sans">
+                FSPL: {selectedLinkInfo.fspl.toFixed(1)} dB
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-800">
+              <div className="text-[10px] text-slate-400 font-sans">True Bearing / Azimuth</div>
+              <div className="font-bold text-white text-xs">
+                {selectedLinkInfo.bearingAtoB.toFixed(1)}° ➔ {selectedLinkInfo.bearingBtoA.toFixed(1)}°
+              </div>
+              <div className="text-[9px] text-slate-500 font-sans">
+                Freq: {selectedLinkInfo.link.frequencyMHz || 400} MHz
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Analysis Actions */}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentView('los');
+              }}
+              className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Real DEM LOS Profiler</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentView('rf-links');
+              }}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-slate-700 transition"
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>Link Budget</span>
+            </button>
           </div>
         </div>
       )}
