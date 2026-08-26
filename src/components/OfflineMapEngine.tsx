@@ -533,8 +533,30 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   const handlePMTilesFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError('');
 
-    if (file.name.toLowerCase().endsWith('.zip')) {
+    // Inspect binary header
+    let isZip = file.name.toLowerCase().endsWith('.zip');
+    let isPmtiles = file.name.toLowerCase().endsWith('.pmtiles');
+
+    try {
+      const slice = await file.slice(0, 8).arrayBuffer();
+      if (slice.byteLength >= 4) {
+        const dv = new DataView(slice);
+        // ZIP magic bytes: 'PK\x03\x04' (0x504B0304)
+        if (dv.getUint32(0, false) === 0x504b0304) {
+          isZip = true;
+          isPmtiles = false;
+        }
+        // PMTiles magic bytes: 'PM' (19792 / 0x4D50)
+        if (dv.getUint16(0, true) === 19792) {
+          isPmtiles = true;
+          isZip = false;
+        }
+      }
+    } catch {}
+
+    if (isZip) {
       onStatus?.(`Unpacking offline ZIP archive "${file.name}"...`);
       try {
         const res = await importOfflineZipArchive(file);
@@ -551,25 +573,45 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         }
         onStatus?.(`Loaded ${res.tileCount.toLocaleString()} tiles from ${file.name}`);
       } catch (err: any) {
-        setError(err.message || 'Failed to unpack ZIP archive');
+        setError(`Failed to unpack ZIP archive: ${err.message || String(err)}`);
       }
       e.target.value = '';
       return;
     }
 
-    const fileSource = new FileSource(file);
-    const pmtiles = new PMTiles(fileSource);
-    pmtilesProtocol.add(pmtiles);
-    const sourceUrl = `pmtiles://${fileSource.getKey()}`;
+    if (isPmtiles) {
+      try {
+        const fileSource = new FileSource(file);
+        const pmtiles = new PMTiles(fileSource);
+        pmtilesProtocol.add(pmtiles);
+        const sourceUrl = `pmtiles://${fileSource.getKey()}`;
 
-    setActiveFileSource('web-file');
-    void applyPMTilesArchive(sourceUrl, pmtiles, file.name);
+        setActiveFileSource('web-file');
+        await applyPMTilesArchive(sourceUrl, pmtiles, file.name);
+      } catch (err: any) {
+        setError(`Failed to read PMTiles file: ${err.message || String(err)}`);
+      }
+      e.target.value = '';
+      return;
+    }
+
+    // Try fallback as ZIP archive
+    try {
+      const res = await importOfflineZipArchive(file);
+      applyWebUploadedTiles(res.tileCount, res.name);
+      onStatus?.(`Loaded ${res.tileCount.toLocaleString()} tiles from ${file.name}`);
+    } catch {
+      setError(
+        `File "${file.name}" is not a valid PMTiles or ZIP map archive. Please upload a .pmtiles file or an offline .zip bundle.`
+      );
+    }
     e.target.value = '';
   };
 
   const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
+    setError('');
 
     const tilesMap = new Map<string, Blob>();
     let tileCount = 0;
@@ -596,7 +638,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
     }
 
     if (tileCount === 0) {
-      setError('No standard tiles found. Expected structure like: z/x/y.png (e.g. 10/583/392.png)');
+      setError('No standard tiles found in folder. Expected structure: z/x/y.png (e.g. 10/583/392.png)');
       return;
     }
 
@@ -619,16 +661,37 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(false);
+    setError('');
 
     const fileList = Array.from(e.dataTransfer.files) as File[];
     if (fileList.length === 0) return;
 
-    // Check if ZIP archive
-    const zipFile = fileList.find((f) => f.name.toLowerCase().endsWith('.zip'));
-    if (zipFile) {
-      onStatus?.(`Unpacking offline ZIP archive "${zipFile.name}"...`);
+    const primaryFile = fileList[0];
+
+    // Inspect binary header of first file
+    let isZip = primaryFile.name.toLowerCase().endsWith('.zip');
+    let isPmtiles = primaryFile.name.toLowerCase().endsWith('.pmtiles');
+
+    try {
+      const slice = await primaryFile.slice(0, 8).arrayBuffer();
+      if (slice.byteLength >= 4) {
+        const dv = new DataView(slice);
+        if (dv.getUint32(0, false) === 0x504b0304) {
+          isZip = true;
+          isPmtiles = false;
+        }
+        if (dv.getUint16(0, true) === 19792) {
+          isPmtiles = true;
+          isZip = false;
+        }
+      }
+    } catch {}
+
+    // 1. Check if ZIP archive
+    if (isZip) {
+      onStatus?.(`Unpacking offline ZIP archive "${primaryFile.name}"...`);
       try {
-        const res = await importOfflineZipArchive(zipFile);
+        const res = await importOfflineZipArchive(primaryFile);
         applyWebUploadedTiles(res.tileCount, res.name);
         if (res.metadata?.bounds) {
           const b = res.metadata.bounds;
@@ -640,26 +703,29 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             { padding: 40, duration: 800 }
           );
         }
-        onStatus?.(`Loaded ${res.tileCount.toLocaleString()} tiles from ${zipFile.name}`);
+        onStatus?.(`Loaded ${res.tileCount.toLocaleString()} tiles from ${primaryFile.name}`);
       } catch (err: any) {
-        setError(err.message || 'Failed to unpack ZIP archive');
+        setError(`Failed to unpack ZIP archive: ${err.message || String(err)}`);
       }
       return;
     }
 
-    // Check if PMTiles file
-    const pmtilesFile = fileList.find((f) => f.name.toLowerCase().endsWith('.pmtiles'));
-    if (pmtilesFile) {
-      const fileSource = new FileSource(pmtilesFile);
-      const pmtiles = new PMTiles(fileSource);
-      pmtilesProtocol.add(pmtiles);
-      const sourceUrl = `pmtiles://${fileSource.getKey()}`;
-      setActiveFileSource('web-file');
-      void applyPMTilesArchive(sourceUrl, pmtiles, pmtilesFile.name);
+    // 2. Check if PMTiles file
+    if (isPmtiles) {
+      try {
+        const fileSource = new FileSource(primaryFile);
+        const pmtiles = new PMTiles(fileSource);
+        pmtilesProtocol.add(pmtiles);
+        const sourceUrl = `pmtiles://${fileSource.getKey()}`;
+        setActiveFileSource('web-file');
+        await applyPMTilesArchive(sourceUrl, pmtiles, primaryFile.name);
+      } catch (err: any) {
+        setError(`Failed to read PMTiles archive: ${err.message || String(err)}`);
+      }
       return;
     }
 
-    // Check if PNG tile batch
+    // 3. Check if PNG tile batch
     const tilesMap = new Map<string, Blob>();
     let tileCount = 0;
     const reg = /(?:^|\/|\\)(?:([a-zA-Z0-9_-]+)\/)?(\d+)\/(\d+)\/(\d+)\.(png|jpg|jpeg|webp)$/i;
@@ -686,7 +752,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       await saveTilesToOfflineStore(tilesMap, { name: label, tileCount });
       applyWebUploadedTiles(tileCount, label);
     } else {
-      setError('Dropped item was neither a .pmtiles archive, a .zip archive, nor a standard z/x/y.png tile set.');
+      setError('Dropped file is not a valid PMTiles archive (.pmtiles), offline ZIP bundle (.zip), or tile folder.');
     }
   };
 
@@ -1495,7 +1561,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             <div>
               <h3 className="text-base font-bold text-white">No Offline Map Archive Loaded</h3>
               <p className="text-xs text-slate-400 mt-1">
-                Upload a <b>.pmtiles</b> map archive or a folder of downloaded <b>PNG map tiles</b> to enable full offline GIS rendering.
+                Upload an offline map <b>.zip bundle</b> (downloaded from Online Map), a <b>.pmtiles</b> archive, or a folder of <b>PNG map tiles</b>.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
@@ -1507,7 +1573,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition"
               >
-                <Upload className="w-4 h-4" /> Upload PMTiles File
+                <Upload className="w-4 h-4" /> Upload (.zip / .pmtiles)
               </button>
               <button
                 type="button"
@@ -1521,7 +1587,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
               </button>
             </div>
             <div className="text-[11px] text-slate-500 pt-1">
-              Tip: You can also drag and drop <b>.pmtiles</b> or tile folders directly onto this window.
+              Tip: You can also drag and drop <b>.zip</b> packages, <b>.pmtiles</b>, or tile folders directly onto this window.
             </div>
           </div>
         </div>

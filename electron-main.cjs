@@ -38,10 +38,13 @@ function scanFolder(folder) {
 
 function safeFilePath(value) {
   let decoded = decodeURIComponent(value || '');
-  // Remove hostname prefix if present (e.g. pmtiles/D:/... -> D:/...)
-  decoded = decoded.replace(/^[A-Za-z0-9_-]+\/+([A-Za-z]:)/, '$1');
+  // Strip scheme if passed directly
+  decoded = decoded.replace(/^[a-z0-9_-]+:\/\//i, '');
+  // Remove host prefix like pmtiles/ or localhost/
+  decoded = decoded.replace(/^(pmtiles|localhost|tiles)\/+/i, '');
   // Accept /C:/... or ///C:/... and normalize to C:/... on Windows
   decoded = decoded.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
+  decoded = decoded.replace(/^[A-Za-z0-9_-]+\/+([A-Za-z]:)/, '$1');
   decoded = decoded.replace(/^\/+/, '');
   return path.normalize(decoded);
 }
@@ -66,13 +69,9 @@ function fileResponse(filePath, request, contentType) {
 app.whenReady().then(() => {
   protocol.handle(LOCAL_SCHEME, async (request) => {
     try {
-      const url = new URL(request.url);
-      let decoded = decodeURIComponent(url.pathname || '');
-      let raw = decoded;
-      if (!raw || raw === '/') {
-        raw = decodeURIComponent(request.url.slice(`${LOCAL_SCHEME}://`.length));
-      }
-      const filePath = safeFilePath(raw);
+      let raw = request.url.slice(`${LOCAL_SCHEME}://`.length);
+      let decoded = decodeURIComponent(raw);
+      const filePath = safeFilePath(decoded);
       return fileResponse(filePath, request, 'application/octet-stream');
     } catch (error) { console.error('local-pmtiles:', error); return new Response('Bad local PMTiles request', { status: 500 }); }
   });
