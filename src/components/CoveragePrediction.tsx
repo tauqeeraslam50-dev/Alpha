@@ -143,7 +143,8 @@ export function CoveragePrediction() {
 
   // Display & Layer Controls
   const [viewMode, setViewMode] = useState<'contours' | 'heatmap' | 'multi-site'>('contours');
-  const [mapTileStyle, setMapTileStyle] = useState<'osm' | 'satellite' | 'topo' | 'light' | 'dark'>('osm');
+  const [mapTileStyle, setMapTileStyle] = useState<'hybrid' | 'streets' | 'osm' | 'topo' | 'dark'>('hybrid');
+  const [showPlaceLabels, setShowPlaceLabels] = useState<boolean>(true);
   const [showHorizon, setShowHorizon] = useState<boolean>(true);
   const [showProbe, setShowProbe] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'parameters' | 'antenna' | 'probe' | 'analysis'>('parameters');
@@ -930,39 +931,58 @@ export function CoveragePrediction() {
             </button>
           </div>
 
-          {/* Online Map Style Picker */}
+          {/* Online Map Style Picker with Full Place Names & Labels */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 text-[11px] font-semibold">
+            <button
+              onClick={() => setMapTileStyle('hybrid')}
+              className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'hybrid' ? 'bg-white dark:bg-slate-700 font-bold text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500'}`}
+              title="Google Satellite with Place Names & Highways"
+            >
+              🛰️ Hybrid Sat
+            </button>
+            <button
+              onClick={() => setMapTileStyle('streets')}
+              className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'streets' ? 'bg-white dark:bg-slate-700 font-bold text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500'}`}
+              title="Google Street Map with Cities, Towns & Roads"
+            >
+              🗺️ Streets
+            </button>
             <button
               onClick={() => setMapTileStyle('osm')}
               className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'osm' ? 'bg-white dark:bg-slate-700 font-bold text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500'}`}
+              title="OpenStreetMap Standard"
             >
               🌍 OSM
             </button>
             <button
-              onClick={() => setMapTileStyle('satellite')}
-              className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'satellite' ? 'bg-white dark:bg-slate-700 font-bold text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500'}`}
-            >
-              🛰️ Sat
-            </button>
-            <button
               onClick={() => setMapTileStyle('topo')}
               className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'topo' ? 'bg-white dark:bg-slate-700 font-bold text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500'}`}
+              title="OpenTopoMap Contours & Elevation"
             >
               ⛰️ Topo
             </button>
             <button
-              onClick={() => setMapTileStyle('light')}
-              className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'light' ? 'bg-white dark:bg-slate-700 font-bold text-slate-900 dark:text-white' : 'text-slate-500'}`}
-            >
-              Street
-            </button>
-            <button
               onClick={() => setMapTileStyle('dark')}
-              className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'dark' ? 'bg-white dark:bg-slate-700 font-bold text-slate-900 dark:text-white' : 'text-slate-500'}`}
+              className={`px-2 py-1 rounded-md transition ${mapTileStyle === 'dark' ? 'bg-white dark:bg-slate-700 font-bold text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'}`}
+              title="High-Contrast Dark Mode with Place Names"
             >
-              Dark
+              🌙 Dark
             </button>
           </div>
+
+          {/* Toggle Place Names Overlay */}
+          <button
+            onClick={() => setShowPlaceLabels(!showPlaceLabels)}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 ${
+              showPlaceLabels
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+            }`}
+            title="Toggle Place Names, City Labels & Highway Boundaries"
+          >
+            <span>🏷️ Place Names:</span>
+            <span className="font-mono">{showPlaceLabels ? 'ON' : 'OFF'}</span>
+          </button>
         </div>
 
         {/* Map Legend Overlay */}
@@ -1000,32 +1020,44 @@ export function CoveragePrediction() {
           style={{ width: '100%', height: '100%' }}
           className="z-0"
         >
+          {/* Base Layer */}
           <TileLayer
             key={mapTileStyle}
             attribution={
-              mapTileStyle === 'satellite'
-                ? '&copy; Esri, Maxar, Earthstar Geographics'
+              mapTileStyle === 'hybrid'
+                ? '&copy; Google Maps (Satellite & Place Names)'
+                : mapTileStyle === 'streets'
+                ? '&copy; Google Maps (Places & Roads)'
                 : mapTileStyle === 'topo'
                 ? '&copy; OpenTopoMap contributors'
-                : mapTileStyle === 'light'
-                ? '&copy; Google Maps'
                 : mapTileStyle === 'dark'
                 ? '&copy; CARTO'
                 : '&copy; OpenStreetMap contributors'
             }
             url={
-              mapTileStyle === 'satellite'
-                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              mapTileStyle === 'hybrid'
+                ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                : mapTileStyle === 'streets'
+                ? 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
                 : mapTileStyle === 'topo'
                 ? 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'
-                : mapTileStyle === 'light'
-                ? 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
                 : mapTileStyle === 'dark'
-                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
                 : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
             }
-            maxZoom={19}
+            maxZoom={20}
           />
+
+          {/* English Place Names, Cities & Reference Boundaries Overlay */}
+          {showPlaceLabels && (
+            <TileLayer
+              key="coverage-place-names-layer"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+              attribution="&copy; Esri Places & Boundaries"
+              zIndex={400}
+              maxZoom={19}
+            />
+          )}
 
           {selectedSite && <MapPanner lat={selectedSite.lat} lng={selectedSite.lng} />}
           <MapClickProbeSetter onSetProbe={(pos) => setProbeLocation(pos)} />
