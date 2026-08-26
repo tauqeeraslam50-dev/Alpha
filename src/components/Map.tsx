@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Sparkles,
   Maximize2,
+  Download,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { cn } from '../lib/utils';
@@ -23,6 +24,7 @@ import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { OfflineMapEngine } from './OfflineMapEngine';
 import { MapSearchBar } from './MapSearchBar';
+import { MapDownloadModal } from './MapDownloadModal';
 import { ONLINE_MAP_LAYERS, DEFAULT_ONLINE_LAYER_ID, type MapLayerConfig } from '../gis/mapLayers';
 
 const DefaultIcon = L.icon({
@@ -136,6 +138,7 @@ export function Map() {
     return localStorage.getItem('rnms_online_layer_id') || DEFAULT_ONLINE_LAYER_ID;
   });
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState<boolean>(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('Offline GIS engine ready');
 
   const setMode = (newMode: MapMode) => {
@@ -378,52 +381,75 @@ export function Map() {
               />
             </div>
 
-            {/* English Layer Switcher Menu */}
-            <div ref={layerMenuRef} className="relative pointer-events-auto">
+            {/* Download Map Button & English Layer Switcher Menu */}
+            <div className="flex items-center gap-2 pointer-events-auto">
               <button
                 type="button"
-                onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
-                className="flex items-center gap-2 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                onClick={() => setIsDownloadModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg text-xs font-bold transition"
+                title="Download map area for offline use"
               >
-                <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span>{activeLayer.name}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Download for Offline</span>
               </button>
 
-              {isLayerMenuOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl p-1.5 z-[500] space-y-1 animate-in fade-in zoom-in-95 duration-100 text-xs">
-                  <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    English Map Baselayers
-                  </div>
-                  {Object.values(ONLINE_MAP_LAYERS).map((layer) => {
-                    const isSelected = layer.id === activeLayerId;
-                    return (
-                      <button
-                        key={layer.id}
-                        type="button"
-                        onClick={() => handleLayerChange(layer.id)}
-                        className={cn(
-                          'w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition',
-                          isSelected
-                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300 font-bold'
-                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        )}
-                      >
-                        <div>
-                          <div className="font-semibold">{layer.name}</div>
-                          <div className="text-[10px] text-slate-400 font-normal">
-                            {layer.description}
+              <div ref={layerMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                >
+                  <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span>{activeLayer.name}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+
+                {isLayerMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl p-1.5 z-[500] space-y-1 animate-in fade-in zoom-in-95 duration-100 text-xs">
+                    <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      English Map Baselayers
+                    </div>
+                    {Object.values(ONLINE_MAP_LAYERS).map((layer) => {
+                      const isSelected = layer.id === activeLayerId;
+                      return (
+                        <button
+                          key={layer.id}
+                          type="button"
+                          onClick={() => handleLayerChange(layer.id)}
+                          className={cn(
+                            'w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition',
+                            isSelected
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300 font-bold'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          )}
+                        >
+                          <div>
+                            <div className="font-semibold">{layer.name}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              {layer.description}
+                            </div>
                           </div>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0 ml-2" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                          {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0 ml-2" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Download Modal */}
+        <MapDownloadModal
+          isOpen={isDownloadModalOpen}
+          onClose={() => setIsDownloadModalOpen(false)}
+          onApplyToOfflineEngine={(count, labelName) => {
+            setIsDownloadModalOpen(false);
+            setMode('offline');
+            setStatus(`Loaded ${count.toLocaleString()} downloaded tiles: "${labelName}"`);
+          }}
+        />
 
         {/* Offline Map Container (Persistent) */}
         <div className={cn('w-full h-full relative', mode === 'offline' ? 'block' : 'hidden')}>

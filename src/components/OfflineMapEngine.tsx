@@ -140,6 +140,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
   const [files, setFiles] = useState<OfflineFile[]>([]);
   const [uploadedTileCount, setUploadedTileCount] = useState<number>(0);
   const [headerInfo, setHeaderInfo] = useState<Header | null>(null);
+  const [offlineStyle, setOfflineStyle] = useState<'satellite' | 'street'>('satellite');
   const [error, setError] = useState<string>('');
 
   // Tool toggles
@@ -1071,6 +1072,96 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
                 </option>
               ))}
             </select>
+          )}
+
+          {/* Satellite vs Vector Mode Switcher */}
+          <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setOfflineStyle('satellite');
+                const map = mapRef.current;
+                if (map) {
+                  if (map.getLayer('rnms-offline-raster')) {
+                    map.setLayoutProperty('rnms-offline-raster', 'visibility', 'visible');
+                  }
+                  if (map.getLayer('rnms-offline-png-layer')) {
+                    map.setLayoutProperty('rnms-offline-png-layer', 'visibility', 'visible');
+                  }
+                  if (map.getLayer('rnms-web-png-layer')) {
+                    map.setLayoutProperty('rnms-web-png-layer', 'visibility', 'visible');
+                  }
+                }
+              }}
+              className={cn(
+                'px-2 py-1 rounded-md text-[11px] font-bold transition flex items-center gap-1',
+                offlineStyle === 'satellite'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+              )}
+              title="Satellite Layer View"
+            >
+              <span>🛰️ Satellite</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOfflineStyle('street');
+                const map = mapRef.current;
+                if (map) {
+                  if (map.getLayer('rnms-offline-raster')) {
+                    map.setLayoutProperty('rnms-offline-raster', 'visibility', 'none');
+                  }
+                  if (map.getLayer('rnms-offline-png-layer')) {
+                    map.setLayoutProperty('rnms-offline-png-layer', 'visibility', 'none');
+                  }
+                  if (map.getLayer('rnms-web-png-layer')) {
+                    map.setLayoutProperty('rnms-web-png-layer', 'visibility', 'none');
+                  }
+                }
+              }}
+              className={cn(
+                'px-2 py-1 rounded-md text-[11px] font-bold transition flex items-center gap-1',
+                offlineStyle === 'street'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+              )}
+              title="Street / Vector Map View"
+            >
+              <span>🗺️ Vector</span>
+            </button>
+          </div>
+
+          {/* Opacity Control for Raster / Satellite Tiles */}
+          {offlineStyle === 'satellite' && activeFileSource !== 'none' && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-bold">
+              <Sliders className="w-3 h-3 text-slate-400" />
+              <span>Opacity</span>
+              <input
+                type="range"
+                min="0.1"
+                max="1"
+                step="0.05"
+                value={rasterOpacity}
+                onChange={(e) => {
+                  const op = Number(e.target.value);
+                  setRasterOpacity(op);
+                  const map = mapRef.current;
+                  if (map) {
+                    if (map.getLayer('rnms-offline-raster')) {
+                      map.setPaintProperty('rnms-offline-raster', 'raster-opacity', op);
+                    }
+                    if (map.getLayer('rnms-offline-png-layer')) {
+                      map.setPaintProperty('rnms-offline-png-layer', 'raster-opacity', op);
+                    }
+                    if (map.getLayer('rnms-web-png-layer')) {
+                      map.setPaintProperty('rnms-web-png-layer', 'raster-opacity', op);
+                    }
+                  }
+                }}
+                className="w-14 h-1 accent-blue-600 cursor-pointer"
+              />
+            </div>
           )}
 
           {/* Toggle Sites Overlay */}
