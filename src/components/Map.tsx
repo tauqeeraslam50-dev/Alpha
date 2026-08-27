@@ -99,7 +99,7 @@ function createSiteIcon(type: string, isConnectingSource = false) {
   });
 }
 
-// RF Link Midpoint Badge creator with Terrain Blocked indicator
+// RF Link Midpoint Badge creator with Air Distance & SNR indicator
 function createLinkBadgeIcon(
   distanceKm: number,
   snr: number,
@@ -108,19 +108,19 @@ function createLinkBadgeIcon(
   isBlocked = false
 ) {
   const iconEmoji = isBlocked ? '🔴' : color === '#f59e0b' ? '🟡' : '🟢';
-  const label = isBlocked ? 'BLOCKED (NO LOS)' : `${snr.toFixed(1)} dB SNR`;
+  const snrText = isBlocked ? 'BLOCKED (NO LOS)' : `SNR: +${snr.toFixed(1)} dB`;
   return L.divIcon({
     className: 'rnms-link-leaflet-badge',
     html: `
-      <div style="transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.95); border: 1.5px solid ${color}; border-radius: 6px; padding: 2px 7px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(4px); white-space: nowrap; cursor: pointer;">
+      <div style="transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.95); border: 2px solid ${color}; border-radius: 8px; padding: 3px 8px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); backdrop-filter: blur(4px); white-space: nowrap; cursor: pointer;">
         <span>${iconEmoji}</span>
-        <span>${distanceKm.toFixed(1)} km</span>
+        <span style="color: #e2e8f0;">Air: <b>${distanceKm.toFixed(1)} km</b></span>
         <span style="color: #64748b;">•</span>
-        <span style="color: ${color}; font-weight: 800;">${label}</span>
+        <span style="color: ${color}; font-weight: 800;">${snrText}</span>
       </div>
     `,
-    iconSize: [160, 24],
-    iconAnchor: [80, 12],
+    iconSize: [210, 26],
+    iconAnchor: [105, 13],
   });
 }
 
@@ -141,30 +141,36 @@ function createObstructionIcon(deficitM: number, distanceKm: number) {
 
 type MapMode = 'online' | 'offline';
 
-// Cisco Packet Tracer Live Wire Component with Real-Time Terrain Obstacle Preview
+// Cisco Packet Tracer Live Wire Component with Real-Time Air Distance & Dynamic SNR Preview
 function createLiveWireBadgeIcon(
   distanceKm: number,
   isBlocked: boolean,
   deficitM: number,
+  estimatedSnr: number,
   targetName?: string
 ) {
   const color = isBlocked ? '#ef4444' : '#06b6d4';
+  const snrDisplay = isBlocked
+    ? 'SNR: Lost'
+    : `SNR: ${estimatedSnr > 0 ? `+${estimatedSnr.toFixed(1)}` : estimatedSnr.toFixed(1)} dB`;
   const label = isBlocked
     ? `🔴 BLOCKED (+${deficitM.toFixed(0)}m Peak)`
-    : `🟢 CLEAR LOS ${targetName ? `➔ ${targetName}` : ''}`;
+    : `🟢 CLEAR ${targetName ? `➔ ${targetName}` : ''}`;
 
   return L.divIcon({
     className: 'rnms-live-wire-badge',
     html: `
       <div style="transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.96); border: 2px solid ${color}; border-radius: 8px; padding: 3px 9px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 6px; box-shadow: 0 0 16px ${color}80, 0 4px 10px rgba(0,0,0,0.6); backdrop-filter: blur(6px); white-space: nowrap; pointer-events: none; animation: pulse 1.5s infinite;">
         <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: ${color}; box-shadow: 0 0 8px ${color};"></span>
-        <span>${distanceKm.toFixed(1)} km</span>
+        <span style="color: #e2e8f0;">Air: <b>${distanceKm.toFixed(1)} km</b></span>
+        <span style="color: #64748b;">•</span>
+        <span style="color: ${isBlocked ? '#f87171' : '#38bdf8'}; font-weight: 800;">${snrDisplay}</span>
         <span style="color: #64748b;">•</span>
         <span style="color: ${color};">${label}</span>
       </div>
     `,
-    iconSize: [230, 28],
-    iconAnchor: [115, 14],
+    iconSize: [310, 28],
+    iconAnchor: [155, 14],
   });
 }
 
@@ -225,6 +231,15 @@ function LiveWireLayer({
   const deficitM = Math.abs(losResult.worstPoint?.clearanceM || 0);
   const wireColor = isBlocked ? '#ef4444' : '#06b6d4';
 
+  // Dynamic Live SNR Calculation during wire drag
+  const fspl = calculateFSPL(distanceKm, freqMHz);
+  const txPower = source.txPowerW ? 10 * Math.log10(source.txPowerW * 1000) : 43;
+  const txGain = source.antennaGainDBi || 6;
+  const rxGain = candidateSite?.antennaGainDBi || 6;
+  const diffLoss = isBlocked ? (losResult.diffractionLossDB || Math.min(45, 18 + deficitM * 0.7)) : 0;
+  const rsl = txPower + txGain + rxGain - 3.0 - (fspl + diffLoss);
+  const estimatedSnr = rsl - (-137);
+
   const midLat = (source.lat + targetCoords[0]) / 2;
   const midLng = (source.lng + targetCoords[1]) / 2;
 
@@ -264,6 +279,7 @@ function LiveWireLayer({
           distanceKm,
           isBlocked,
           deficitM,
+          estimatedSnr,
           candidateSite?.name
         )}
         interactive={false}
@@ -477,76 +493,12 @@ export function Map() {
   return (
     <section
       className={cn(
-        'h-full flex flex-col p-3 sm:p-4 gap-3 select-none',
+        'h-full w-full flex-1 flex flex-col relative overflow-hidden select-none p-0 gap-0',
         theme === 'light' ? 'text-slate-900' : 'text-slate-100'
       )}
     >
-      {/* Top Header & Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
-            <MapIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-              <span>GIS Map System</span>
-              <span
-                className={cn(
-                  'text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase',
-                  mode === 'online'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300'
-                )}
-              >
-                {mode === 'online' ? 'Online Mode (English)' : 'Offline GIS Engine'}
-              </span>
-            </h2>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              {mode === 'online'
-                ? 'Global English map baselayers with geocoding search & network overlays'
-                : 'Standalone offline PMTiles & PNG tile renderer with tactical tools'}
-            </p>
-          </div>
-        </div>
-
-        {/* Mode Selector */}
-        <div
-          className={cn(
-            'flex items-center rounded-xl border p-1 shadow-xs',
-            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
-          )}
-        >
-          <button
-            type="button"
-            onClick={() => setMode('online')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition',
-              mode === 'online'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-            )}
-          >
-            <Wifi className="w-3.5 h-3.5" />
-            <span>Online Map (English)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('offline')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition',
-              mode === 'offline'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-            )}
-          >
-            <WifiOff className="w-3.5 h-3.5" />
-            <span>Offline Map Engine</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Map Container */}
-      <div className="flex-1 min-h-0 rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-950 relative shadow-inner">
+      {/* Main Full-Bleed Map Canvas */}
+      <div className="flex-1 w-full h-full min-h-0 relative bg-slate-900 overflow-hidden">
         {/* Online Map Container (Persistent) */}
         <div className={cn('w-full h-full relative', mode === 'online' ? 'block' : 'hidden')}>
           <MapContainer
@@ -875,16 +827,51 @@ export function Map() {
           )}
 
           {/* Floating Top Controls Overlay */}
-          <div className="absolute top-3 left-3 right-3 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-            {/* Universal Search Bar */}
-            <div className="pointer-events-auto w-full max-w-sm sm:max-w-md">
-              <MapSearchBar
-                isOnline={true}
-                hasActivePin={Boolean(targetLocation)}
-                onSelectLocation={handleSelectLocation}
-                onClearPin={handleClearPin}
-                placeholder="Search cities worldwide, Pakistani towns, sites, coordinates..."
-              />
+          <div className="absolute top-2.5 left-2.5 right-2.5 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+            {/* Left: Mode Switcher & Universal Search Bar */}
+            <div className="pointer-events-auto flex items-center gap-2 w-full max-w-lg">
+              {/* Mode Selector Pill */}
+              <div className="flex items-center rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 border border-slate-200 dark:border-slate-800 shadow-lg text-xs">
+                <button
+                  type="button"
+                  onClick={() => setMode('online')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-bold transition',
+                    mode === 'online'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  )}
+                  title="Global Online Map with English Labels"
+                >
+                  <Wifi className="w-3.5 h-3.5" />
+                  <span>Online</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('offline')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-bold transition',
+                    mode === 'offline'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  )}
+                  title="Full Pakistan Offline Map Engine"
+                >
+                  <WifiOff className="w-3.5 h-3.5" />
+                  <span>Offline</span>
+                </button>
+              </div>
+
+              {/* Universal Search Bar */}
+              <div className="flex-1 min-w-[200px]">
+                <MapSearchBar
+                  isOnline={true}
+                  hasActivePin={Boolean(targetLocation)}
+                  onSelectLocation={handleSelectLocation}
+                  onClearPin={handleClearPin}
+                  placeholder="Search Pakistan cities, bases, sites, coordinates..."
+                />
+              </div>
             </div>
 
             {/* Top Toolbar Actions: Connect Sites, Links, Layers, Download */}
@@ -1151,6 +1138,9 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => {
+                    localStorage.setItem('rnms_selected_link_id', selectedLinkInfo.link.id);
+                    localStorage.setItem('rnms_selected_tx_id', selectedLinkInfo.source.id);
+                    localStorage.setItem('rnms_selected_rx_id', selectedLinkInfo.target.id);
                     setCurrentView('los');
                   }}
                   className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg"
@@ -1177,7 +1167,7 @@ export function Map() {
 
           {/* Quick Connect Toast Notice */}
           {connectToast && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[460] bg-slate-900/95 text-white border border-cyan-500/80 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-xs flex items-center gap-2 animate-in fade-in">
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[460] bg-slate-900/95 text-white border border-cyan-500/80 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-xs flex items-center gap-2 animate-in fade-in">
               <span>{connectToast}</span>
               <button
                 type="button"
@@ -1203,20 +1193,25 @@ export function Map() {
 
         {/* Offline Map Container (Persistent) */}
         <div className={cn('w-full h-full relative', mode === 'offline' ? 'block' : 'hidden')}>
-          <OfflineMapEngine onStatus={setStatus} />
+          <OfflineMapEngine
+            onStatus={setStatus}
+            onSwitchToOnline={() => setMode('online')}
+          />
         </div>
       </div>
 
-      {/* Footer Info / Status */}
-      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium px-1">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span>{mode === 'online' ? `Online Layer: ${activeLayer.name}` : status}</span>
+      {/* Floating Bottom Status HUD */}
+      <div className="absolute bottom-2.5 left-2.5 right-2.5 z-[400] pointer-events-none flex items-center justify-between text-[11px] font-mono">
+        <div className="pointer-events-auto bg-slate-900/90 text-white border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-xl backdrop-blur-md flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>{mode === 'online' ? `Online: ${activeLayer.name}` : status}</span>
         </div>
-        <div className="text-right hidden sm:block">
-          <span>
-            {sites.length} Active RF Sites Overlaid · {mode === 'online' ? 'English Base Maps' : 'Offline GIS'}
-          </span>
+        <div className="pointer-events-auto bg-slate-900/90 text-slate-300 border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-xl backdrop-blur-md hidden sm:flex items-center gap-2.5">
+          <span>{sites.length} Active Sites</span>
+          <span className="text-slate-600">•</span>
+          <span>{links.length} RF Links</span>
+          <span className="text-slate-600">•</span>
+          <span className="text-cyan-400 font-bold">Air Dist & SNR Active</span>
         </div>
       </div>
     </section>

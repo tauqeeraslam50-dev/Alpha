@@ -23,6 +23,7 @@ import {
   ArrowRight,
   X,
   Wifi,
+  WifiOff,
   Zap,
   Cable,
   AlertTriangle,
@@ -150,7 +151,13 @@ function toDMS(val: number, isLat: boolean): string {
   return `${deg}°${min}'${sec}" ${dir}`;
 }
 
-export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => void }) {
+export function OfflineMapEngine({
+  onStatus,
+  onSwitchToOnline,
+}: {
+  onStatus?: (status: string) => void;
+  onSwitchToOnline?: () => void;
+}) {
   const { sites, links, addLink, removeLink, theme, setCurrentView } = useAppContext();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | undefined>(undefined);
@@ -1083,6 +1090,19 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       const deficitM = Math.abs(losResult.worstPoint?.clearanceM || 0);
       const wireColor = isBlocked ? '#ef4444' : '#06b6d4';
 
+      // Dynamic Live SNR Calculation during wire dragging
+      const fspl = calculateFSPL(distanceKm, freqMHz);
+      const txPower = connectingSource.txPowerW
+        ? 10 * Math.log10(connectingSource.txPowerW * 1000)
+        : 43;
+      const txGain = connectingSource.antennaGainDBi || 6;
+      const rxGain = candidateSite?.antennaGainDBi || 6;
+      const diffLoss = isBlocked
+        ? (losResult.diffractionLossDB || Math.min(45, 18 + deficitM * 0.7))
+        : 0;
+      const rsl = txPower + txGain + rxGain - 3.0 - (fspl + diffLoss);
+      const estimatedSnr = rsl - (-137);
+
       const data: GeoJSON.Feature<GeoJSON.LineString> = {
         type: 'Feature',
         properties: {
@@ -1149,11 +1169,16 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       const label = isBlocked
         ? `🔴 BLOCKED (+${deficitM.toFixed(0)}m Peak)`
         : `🟢 CLEAR LOS ${candidateSite ? `➔ ${candidateSite.name}` : ''}`;
+      const snrDisplay = isBlocked
+        ? 'SNR: Lost'
+        : `SNR: ${estimatedSnr > 0 ? `+${estimatedSnr.toFixed(1)}` : estimatedSnr.toFixed(1)} dB`;
 
       badgeEl.innerHTML = `
         <div style="background: rgba(15, 23, 42, 0.96); border: 2px solid ${wireColor}; border-radius: 8px; padding: 3px 9px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 6px; box-shadow: 0 0 16px ${wireColor}80, 0 4px 10px rgba(0,0,0,0.6); backdrop-filter: blur(6px); white-space: nowrap; animation: pulse 1.5s infinite;">
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: ${wireColor}; box-shadow: 0 0 8px ${wireColor};"></span>
-          <span>${distanceKm.toFixed(1)} km</span>
+          <span style="color: #e2e8f0;">Air: <b>${distanceKm.toFixed(1)} km</b></span>
+          <span style="color: #64748b;">•</span>
+          <span style="color: ${isBlocked ? '#f87171' : '#38bdf8'}; font-weight: 800;">${snrDisplay}</span>
           <span style="color: #64748b;">•</span>
           <span style="color: ${wireColor};">${label}</span>
         </div>
@@ -1542,14 +1567,14 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
         const el = document.createElement('div');
         el.className = 'rnms-link-badge select-none cursor-pointer transition-transform hover:scale-110';
         const iconEmoji = isTerrainBlocked ? '🔴' : color === '#f59e0b' ? '🟡' : '🟢';
-        const label = isTerrainBlocked ? 'BLOCKED (NO LOS)' : `${effectiveSnr.toFixed(1)} dB SNR`;
+        const snrText = isTerrainBlocked ? 'BLOCKED (NO LOS)' : `SNR: +${effectiveSnr.toFixed(1)} dB`;
 
         el.innerHTML = `
-          <div style="background: rgba(15, 23, 42, 0.95); border: 1.5px solid ${color}; border-radius: 6px; padding: 2.5px 8px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(4px);">
+          <div style="background: rgba(15, 23, 42, 0.95); border: 2px solid ${color}; border-radius: 8px; padding: 3px 8px; color: #f8fafc; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
             <span>${iconEmoji}</span>
-            <span>${distanceKm.toFixed(1)} km</span>
+            <span style="color: #e2e8f0;">Air: <b>${distanceKm.toFixed(1)} km</b></span>
             <span style="color: #64748b;">•</span>
-            <span style="color: ${color}; font-weight: 800;">${label}</span>
+            <span style="color: ${color}; font-weight: 800;">${snrText}</span>
           </div>
         `;
 
@@ -1861,7 +1886,7 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
 
   return (
     <div
-      className="relative w-full h-full overflow-hidden rounded-xl bg-slate-900 select-none flex flex-col"
+      className="relative w-full h-full overflow-hidden bg-slate-950 select-none flex flex-col p-0 m-0"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1886,16 +1911,41 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
       />
 
       {/* Top Floating Control Bar */}
-      <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Search Bar */}
-        <div className="pointer-events-auto w-full max-w-sm sm:max-w-md">
-          <MapSearchBar
-            isOnline={false}
-            hasActivePin={Boolean(activeSearchPin)}
-            onSelectLocation={handleSelectSearchLocation}
-            onClearPin={handleClearPin}
-            placeholder="Search Pakistan cities, bases, sites, coordinates..."
-          />
+      <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        {/* Left: Mode Switcher & Search Bar */}
+        <div className="pointer-events-auto flex items-center gap-2 w-full max-w-lg">
+          {onSwitchToOnline && (
+            <div className="flex items-center rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 border border-slate-200 dark:border-slate-800 shadow-lg text-xs">
+              <button
+                type="button"
+                onClick={onSwitchToOnline}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 transition"
+                title="Switch to Global Online Map"
+              >
+                <Wifi className="w-3.5 h-3.5" />
+                <span>Online</span>
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-bold bg-emerald-600 text-white shadow-xs"
+                title="Currently in Full Pakistan Offline Map Engine"
+              >
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>Offline</span>
+              </button>
+            </div>
+          )}
+
+          {/* Search Bar */}
+          <div className="flex-1 min-w-[200px]">
+            <MapSearchBar
+              isOnline={false}
+              hasActivePin={Boolean(activeSearchPin)}
+              onSelectLocation={handleSelectSearchLocation}
+              onClearPin={handleClearPin}
+              placeholder="Search Pakistan cities, bases, sites, coordinates..."
+            />
+          </div>
         </div>
 
         {/* Offline Upload & Layer Controls */}
@@ -2567,6 +2617,9 @@ export function OfflineMapEngine({ onStatus }: { onStatus?: (status: string) => 
             <button
               type="button"
               onClick={() => {
+                localStorage.setItem('rnms_selected_link_id', selectedLinkInfo.link.id);
+                localStorage.setItem('rnms_selected_tx_id', selectedLinkInfo.source.id);
+                localStorage.setItem('rnms_selected_rx_id', selectedLinkInfo.target.id);
                 setCurrentView('los');
               }}
               className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg"

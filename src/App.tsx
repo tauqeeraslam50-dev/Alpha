@@ -40,12 +40,14 @@ function MainContent() {
     }
   };
 
-  return <main className={`flex-1 flex flex-col relative overflow-y-auto ${theme === 'light' ? 'bg-[#f1f5f9]' : 'bg-slate-950'}`}>
+  const isMapModule = currentView === 'map';
+
+  return <main className={`flex-1 flex flex-col relative ${isMapModule ? 'overflow-hidden' : 'overflow-y-auto'} ${theme === 'light' ? 'bg-[#f1f5f9]' : 'bg-slate-950'}`}>
     <div className="absolute inset-0 opacity-40 pointer-events-none min-h-full" style={{ backgroundImage: theme === 'light' ? 'radial-gradient(#cbd5e1 0.75px, transparent 0.75px)' : 'radial-gradient(#334155 0.75px, transparent 0.75px)', backgroundSize: '20px 20px' }}></div>
-    <div className="relative z-10 flex-1 flex flex-col">
+    <div className={`relative z-10 flex-1 flex flex-col min-h-0 ${isMapModule ? 'h-full w-full' : ''}`}>
       {/* Keep the map mounted while other modules are displayed. This preserves
           the MapLibre instance, PMTiles state, zoom and center during navigation. */}
-      <div className={currentView === 'map' ? 'flex flex-1 min-h-0' : 'hidden'}>
+      <div className={currentView === 'map' ? 'flex flex-1 min-h-0 h-full w-full' : 'hidden'}>
         <Map />
       </div>
       {currentView !== 'map' && renderView()}

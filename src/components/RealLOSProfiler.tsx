@@ -82,6 +82,81 @@ type Point = { name: string; lat: number; lon: number; elev?: number };
 const defaultTx: Point = { name: 'Margalla Ridge (Repeater)', lat: 33.785, lon: 73.09, elev: 1100 };
 const defaultRx: Point = { name: 'Rawalpindi GHQ Node', lat: 33.5651, lon: 73.0169, elev: 508 };
 
+interface StrategicLinkPreset {
+  id: string;
+  name: string;
+  tx: Point;
+  rx: Point;
+  suggestedFreqMHz: number;
+}
+
+const STRATEGIC_PRESETS: StrategicLinkPreset[] = [
+  {
+    id: 'margalla-ghq',
+    name: 'Margalla Ridge Repeater ➔ Rawalpindi GHQ (25.1 km)',
+    tx: { name: 'Margalla Ridge Repeater', lat: 33.785, lon: 73.09, elev: 1180 },
+    rx: { name: 'Rawalpindi GHQ Base', lat: 33.5651, lon: 73.0169, elev: 508 },
+    suggestedFreqMHz: 450,
+  },
+  {
+    id: 'rawalpindi-murree',
+    name: 'Rawalpindi Base ➔ Murree Patriata (46.4 km)',
+    tx: { name: 'Rawalpindi Base Node', lat: 33.598, lon: 73.044, elev: 520 },
+    rx: { name: 'Murree Patriata Tower', lat: 33.9062, lon: 73.3903, elev: 2291 },
+    suggestedFreqMHz: 450,
+  },
+  {
+    id: 'cherat-peshawar',
+    name: 'Cherat PAF Station ➔ Peshawar Cantt (32.8 km)',
+    tx: { name: 'Cherat Ridge Base', lat: 33.821, lon: 71.889, elev: 1400 },
+    rx: { name: 'Peshawar Cantt Node', lat: 34.004, lon: 71.545, elev: 359 },
+    suggestedFreqMHz: 800,
+  },
+  {
+    id: 'fortmunro-dgkhan',
+    name: 'Fort Munro Peak ➔ D.G. Khan Base (68.2 km)',
+    tx: { name: 'Fort Munro Radio Mast', lat: 29.923, lon: 70.021, elev: 1800 },
+    rx: { name: 'D.G. Khan Operations Center', lat: 30.056, lon: 70.634, elev: 125 },
+    suggestedFreqMHz: 150,
+  },
+  {
+    id: 'gorakh-dadu',
+    name: 'Gorakh Hill Station ➔ Dadu City Base (74.6 km)',
+    tx: { name: 'Gorakh Summit Node', lat: 26.862, lon: 67.151, elev: 1734 },
+    rx: { name: 'Dadu Base Station', lat: 26.732, lon: 67.778, elev: 42 },
+    suggestedFreqMHz: 450,
+  },
+  {
+    id: 'chiltan-quetta',
+    name: 'Chiltan Peak Station ➔ Quetta Cantt (22.3 km)',
+    tx: { name: 'Chiltan Mountain Mast', lat: 30.012, lon: 66.821, elev: 3194 },
+    rx: { name: 'Quetta Cantt Comms Hub', lat: 30.179, lon: 67.001, elev: 1680 },
+    suggestedFreqMHz: 450,
+  },
+  {
+    id: 'tilla-jhelum',
+    name: 'Tilla Jogian Peak ➔ Jhelum Cantt (28.4 km)',
+    tx: { name: 'Tilla Jogian Repeater', lat: 32.868, lon: 73.439, elev: 975 },
+    rx: { name: 'Jhelum Cantt Node', lat: 32.933, lon: 73.726, elev: 234 },
+    suggestedFreqMHz: 450,
+  },
+];
+
+function calculateAzimuthBearing(lat1: number, lon1: number, lat2: number, lon2: number): {
+  forward: number;
+  reverse: number;
+} {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+  const fwd = (toDeg(Math.atan2(y, x)) + 360) % 360;
+  const rev = (fwd + 180) % 360;
+  return { forward: Number(fwd.toFixed(1)), reverse: Number(rev.toFixed(1)) };
+}
+
 // Leaflet Map Resizer & Fitter
 function LosMapController({ tx, rx }: { tx: Point; rx: Point }) {
   const map = useMap();
@@ -97,9 +172,25 @@ function LosMapController({ tx, rx }: { tx: Point; rx: Point }) {
 }
 
 export function RealLOSProfiler() {
-  const { sites, theme } = useAppContext();
+  const { sites, links, theme } = useAppContext();
+  const [selectedLinkId, setSelectedLinkId] = useState<string>(() => {
+    return localStorage.getItem('rnms_selected_link_id') || '';
+  });
+  const [customTx, setCustomTx] = useState<Point | null>(null);
+  const [customRx, setCustomRx] = useState<Point | null>(null);
   const [txId, setTxId] = useState(sites[0]?.id ?? '');
   const [rxId, setRxId] = useState(sites[1]?.id ?? sites[0]?.id ?? '');
+
+  // Clutter Obstacle Height Simulation
+  const [clutterType, setClutterType] = useState<'none' | 'open' | 'suburban' | 'forest' | 'urban'>('none');
+  const CLUTTER_MAP: Record<string, { label: string; height: number }> = {
+    none: { label: 'Bare Ground (+0m)', height: 0 },
+    open: { label: 'Open Shrub (+3m)', height: 3 },
+    suburban: { label: 'Suburban / Trees (+10m)', height: 10 },
+    forest: { label: 'Forest / Pine Canopy (+18m)', height: 18 },
+    urban: { label: 'Dense Urban / Buildings (+25m)', height: 25 },
+  };
+  const clutterHeightM = CLUTTER_MAP[clutterType].height;
 
   // RF Link Parameters
   const [frequencyMHz, setFrequencyMHz] = useState<number>(450); // 450 MHz UHF default
@@ -125,21 +216,98 @@ export function RealLOSProfiler() {
   // Map Layer in Mini-Map
   const [miniMapLayerId, setMiniMapLayerId] = useState<string>('esri-satellite');
 
+  // Sync selected link from project or localStorage
+  useEffect(() => {
+    const savedLinkId = localStorage.getItem('rnms_selected_link_id');
+    if (savedLinkId) {
+      const match = links.find((l) => l.id === savedLinkId);
+      if (match) {
+        setSelectedLinkId(match.id);
+        setTxId(match.sourceSiteId);
+        setRxId(match.targetSiteId);
+        setCustomTx(null);
+        setCustomRx(null);
+        setFrequencyMHz(match.frequencyMHz || 450);
+        if (match.txPowerDBm) {
+          setTxPowerW(Math.max(1, Math.round(Math.pow(10, (match.txPowerDBm - 30) / 10))));
+        }
+        if (match.txAntennaGainDBi) setTxGainDbi(match.txAntennaGainDBi);
+        if (match.rxAntennaGainDBi) setRxGainDbi(match.rxAntennaGainDBi);
+        return;
+      }
+    }
+    const savedTx = localStorage.getItem('rnms_selected_tx_id');
+    const savedRx = localStorage.getItem('rnms_selected_rx_id');
+    if (savedTx && sites.some((s) => s.id === savedTx)) {
+      setTxId(savedTx);
+      setCustomTx(null);
+    }
+    if (savedRx && sites.some((s) => s.id === savedRx)) {
+      setRxId(savedRx);
+      setCustomRx(null);
+    }
+  }, [links, sites]);
+
+  const handleSelectProjectLink = (linkId: string) => {
+    setSelectedLinkId(linkId);
+    if (!linkId) return;
+    const match = links.find((l) => l.id === linkId);
+    if (match) {
+      setTxId(match.sourceSiteId);
+      setRxId(match.targetSiteId);
+      setCustomTx(null);
+      setCustomRx(null);
+      setFrequencyMHz(match.frequencyMHz || 450);
+      if (match.txPowerDBm) {
+        setTxPowerW(Math.max(1, Math.round(Math.pow(10, (match.txPowerDBm - 30) / 10))));
+      }
+      if (match.txAntennaGainDBi) setTxGainDbi(match.txAntennaGainDBi);
+      if (match.rxAntennaGainDBi) setRxGainDbi(match.rxAntennaGainDBi);
+      localStorage.setItem('rnms_selected_link_id', match.id);
+    }
+  };
+
+  const handleSelectStrategicPreset = (presetId: string) => {
+    const preset = STRATEGIC_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setSelectedLinkId('');
+    setCustomTx(preset.tx);
+    setCustomRx(preset.rx);
+    setFrequencyMHz(preset.suggestedFreqMHz);
+  };
+
   const tx: Point = useMemo(() => {
+    if (customTx) return customTx;
     const s = sites.find((x) => x.id === txId);
     return s ? { name: s.name, lat: s.lat, lon: s.lng, elev: s.elevation } : defaultTx;
-  }, [sites, txId]);
+  }, [sites, txId, customTx]);
 
   const rx: Point = useMemo(() => {
+    if (customRx) return customRx;
     const s = sites.find((x) => x.id === rxId);
     return s ? { name: s.name, lat: s.lat, lon: s.lng, elev: s.elevation } : defaultRx;
-  }, [sites, rxId]);
+  }, [sites, rxId, customRx]);
 
   const totalDistanceMeters = useMemo(() => {
     return haversineMeters({ lat: tx.lat, lon: tx.lon }, { lat: rx.lat, lon: rx.lon });
   }, [tx, rx]);
 
   const totalDistanceKm = totalDistanceMeters / 1000;
+
+  const azimuths = useMemo(() => {
+    return calculateAzimuthBearing(tx.lat, tx.lon, rx.lat, rx.lon);
+  }, [tx, rx]);
+
+  const surfaceTerrainDistanceKm = useMemo(() => {
+    if (!customElevations.length) return totalDistanceKm;
+    let distM = 0;
+    const stepHorizM = totalDistanceMeters / (customElevations.length - 1);
+    for (let i = 0; i < customElevations.length - 1; i++) {
+      const deltaElevM = customElevations[i + 1] - customElevations[i];
+      distM += Math.sqrt(stepHorizM * stepHorizM + deltaElevM * deltaElevM);
+    }
+    return Number((distM / 1000).toFixed(2));
+  }, [customElevations, totalDistanceKm, totalDistanceMeters]);
 
   // Scan local HGT DEM files
   const loadDemIndex = async () => {
@@ -302,11 +470,11 @@ export function RealLOSProfiler() {
       const rawTerrainM = customElevations[i];
 
       // Earth Curvature Bulge (meters) with K-factor
-      // h_c = (d1 * d2) / (12.74 * k)
       const earthBulgeM =
         kFactor > 0 ? (d1M * d2M) / (12740000 * kFactor) : 0;
 
-      const effectiveTerrainM = rawTerrainM + earthBulgeM;
+      // Effective Terrain with Clutter Obstacle Simulation
+      const effectiveTerrainM = rawTerrainM + earthBulgeM + clutterHeightM;
 
       // Direct Line of Sight (LOS) Ray height at this distance
       const directRayM = txAbsolute + (rxAbsolute - txAbsolute) * f;
@@ -342,6 +510,7 @@ export function RealLOSProfiler() {
         distanceKm: Number(distKm.toFixed(2)),
         terrain: Math.round(effectiveTerrainM),
         rawTerrain: Math.round(rawTerrainM),
+        clutterM: clutterHeightM,
         earthBulge: Number(earthBulgeM.toFixed(1)),
         losRay: Number(directRayM.toFixed(1)),
         fresnelTop: Number(fresnelTopM.toFixed(1)),
@@ -364,24 +533,36 @@ export function RealLOSProfiler() {
     const txPowerDbm = 10 * Math.log10((txPowerW || 25) * 1000);
     const eirpDbm = txPowerDbm + txGainDbi;
 
-    // Diffraction loss estimation if obstructed
+    // Knife-Edge Diffraction loss estimation if obstructed
     let diffractionLossDb = 0;
     if (isDirectObstructed) {
-      diffractionLossDb = Math.min(40, 16 + Math.abs(minClearanceM) * 0.8);
+      diffractionLossDb = Math.min(45, 18 + Math.abs(minClearanceM) * 0.85);
     } else if (isFresnelObstructed) {
-      diffractionLossDb = Math.min(12, Math.abs(minFresnelClearanceM) * 0.4);
+      diffractionLossDb = Math.min(14, Math.abs(minFresnelClearanceM) * 0.45);
     }
 
     const rxSignalDbm = eirpDbm - fsplDb - diffractionLossDb + rxGainDbi;
     const linkMarginDb = rxSignalDbm - rxSensitivityDbm;
+    const effectiveSnr = rxSignalDbm - (-137); // Noise floor for 12.5kHz DMR/FM channel
+
+    const reliabilityTier =
+      linkMarginDb >= 25
+        ? 'Five-Nines (>99.999%)'
+        : linkMarginDb >= 15
+        ? 'Carrier-Grade (99.99%)'
+        : linkMarginDb >= 5
+        ? 'Fair (99.0%)'
+        : linkMarginDb >= 0
+        ? 'Marginal (Fading Risk)'
+        : 'Unviable / Severed';
 
     const worstPoint =
       worstObstacleIndex >= 0 ? chartSamples[worstObstacleIndex] : null;
 
     // Required Antenna Height recommendation to clear 60% Fresnel Zone
     const heightDeficitM = minFresnelClearanceM < 0 ? Math.abs(minFresnelClearanceM) : 0;
-    const recommendedTxHeight = Math.ceil(txHeight + heightDeficitM * 0.6);
-    const recommendedRxHeight = Math.ceil(rxHeight + heightDeficitM * 0.6);
+    const recommendedTxHeight = Math.ceil(txHeight + heightDeficitM * 0.65);
+    const recommendedRxHeight = Math.ceil(rxHeight + heightDeficitM * 0.65);
 
     return {
       samples: chartSamples,
@@ -394,8 +575,11 @@ export function RealLOSProfiler() {
       txPowerDbm: Number(txPowerDbm.toFixed(1)),
       eirpDbm: Number(eirpDbm.toFixed(1)),
       diffractionLossDb: Number(diffractionLossDb.toFixed(1)),
+      totalPathLoss: Number((fsplDb + diffractionLossDb).toFixed(1)),
       rxSignalDbm: Number(rxSignalDbm.toFixed(1)),
+      effectiveSnr: Number(effectiveSnr.toFixed(1)),
       linkMarginDb: Number(linkMarginDb.toFixed(1)),
+      reliabilityTier,
       recommendedTxHeight,
       recommendedRxHeight,
     };
@@ -412,9 +596,20 @@ export function RealLOSProfiler() {
     rxGainDbi,
     rxSensitivityDbm,
     kFactor,
+    clutterHeightM,
     totalDistanceMeters,
     totalDistanceKm,
   ]);
+
+  const autoOptimizeTowers = () => {
+    if (!profileAnalysis) return;
+    if (profileAnalysis.minFresnelClearanceM < 0) {
+      const deficit = Math.abs(profileAnalysis.minFresnelClearanceM);
+      const addHeight = Math.ceil(deficit * 0.65) + 4;
+      setTxHeight((prev) => Math.min(150, prev + addHeight));
+      setRxHeight((prev) => Math.min(150, prev + addHeight));
+    }
+  };
 
   // Export CSV
   const handleExportCsv = () => {
@@ -489,18 +684,68 @@ export function RealLOSProfiler() {
 
       {/* Control Configuration Bar */}
       <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4 text-xs">
+        {/* Project Link Selector & Strategic Presets */}
+        <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60">
+          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+            <Radio className="w-4 h-4 text-blue-600 shrink-0" />
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              Project Link:
+            </span>
+            <select
+              value={selectedLinkId}
+              onChange={(e) => handleSelectProjectLink(e.target.value)}
+              className="flex-1 p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+            >
+              <option value="">-- Choose Project RF Link ({links.length}) --</option>
+              {links.map((link) => {
+                const s = sites.find((x) => x.id === link.sourceSiteId);
+                const t = sites.find((x) => x.id === link.targetSiteId);
+                return (
+                  <option key={link.id} value={link.id}>
+                    {s?.name || 'Site A'} ➔ {t?.name || 'Site B'} ({link.distanceKm} km, {link.frequencyMHz} MHz)
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+            <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              🇵🇰 Pakistan Tactical Presets:
+            </span>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) handleSelectStrategicPreset(e.target.value);
+              }}
+              className="flex-1 p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+            >
+              <option value="">-- Tactical High-Ground Profiles --</option>
+              {STRATEGIC_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* TX Site Selector */}
           <div>
             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 flex items-center justify-between">
-              <span>Transmitter (TX) Site</span>
+              <span>Transmitter (TX) Station</span>
               <span className="font-mono text-blue-600 dark:text-blue-400">
                 {tx.elev || 0}m AMSL
               </span>
             </label>
             <select
-              value={txId}
-              onChange={(e) => setTxId(e.target.value)}
+              value={customTx ? '' : txId}
+              onChange={(e) => {
+                setCustomTx(null);
+                setTxId(e.target.value);
+              }}
               className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {sites.map((s) => (
@@ -508,21 +753,25 @@ export function RealLOSProfiler() {
                   {s.name} ({s.type})
                 </option>
               ))}
-              {!sites.length && <option value="">Default TX Node</option>}
+              {customTx && <option value="">{customTx.name} (Custom)</option>}
+              {!sites.length && !customTx && <option value="">Default TX Node</option>}
             </select>
           </div>
 
           {/* RX Site Selector */}
           <div>
             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 flex items-center justify-between">
-              <span>Receiver (RX) Site</span>
+              <span>Receiver (RX) Station</span>
               <span className="font-mono text-emerald-600 dark:text-emerald-400">
                 {rx.elev || 0}m AMSL
               </span>
             </label>
             <select
-              value={rxId}
-              onChange={(e) => setRxId(e.target.value)}
+              value={customRx ? '' : rxId}
+              onChange={(e) => {
+                setCustomRx(null);
+                setRxId(e.target.value);
+              }}
               className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {sites.map((s) => (
@@ -530,58 +779,47 @@ export function RealLOSProfiler() {
                   {s.name} ({s.type})
                 </option>
               ))}
-              {!sites.length && <option value="">Default RX Node</option>}
+              {customRx && <option value="">{customRx.name} (Custom)</option>}
+              {!sites.length && !customRx && <option value="">Default RX Node</option>}
             </select>
           </div>
 
-          {/* Tower Heights */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                TX Tower (m)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="300"
-                value={txHeight}
-                onChange={(e) => setTxHeight(Number(e.target.value))}
-                className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                RX Tower (m)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="300"
-                value={rxHeight}
-                onChange={(e) => setRxHeight(Number(e.target.value))}
-                className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold"
-              />
-            </div>
+          {/* Frequency */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+              RF Frequency
+            </label>
+            <select
+              value={frequencyMHz}
+              onChange={(e) => setFrequencyMHz(Number(e.target.value))}
+              className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+            >
+              <option value={150}>150 MHz (VHF Tactical)</option>
+              <option value={450}>450 MHz (UHF DMR/FM)</option>
+              <option value={800}>800 MHz (Tactical SDR)</option>
+              <option value={2400}>2.4 GHz (Microwave/ISM)</option>
+              <option value={5800}>5.8 GHz (High Capacity Link)</option>
+              <option value={13000}>13 GHz (Backhaul Trunk)</option>
+              <option value={23000}>23 GHz (Backhaul Trunk)</option>
+            </select>
           </div>
 
-          {/* Frequency & Earth Curvature */}
+          {/* Clutter Obstacle Simulation & K-Factor */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Frequency
+                Clutter Model
               </label>
               <select
-                value={frequencyMHz}
-                onChange={(e) => setFrequencyMHz(Number(e.target.value))}
-                className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                value={clutterType}
+                onChange={(e) => setClutterType(e.target.value as any)}
+                className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
               >
-                <option value={150}>150 MHz (VHF)</option>
-                <option value={450}>450 MHz (UHF)</option>
-                <option value={800}>800 MHz (Tactical)</option>
-                <option value={2400}>2.4 GHz (ISM)</option>
-                <option value={5800}>5.8 GHz (Microwave)</option>
-                <option value={13000}>13 GHz (Backhaul)</option>
-                <option value={23000}>23 GHz (Backhaul)</option>
+                <option value="none">Bare (+0m)</option>
+                <option value="open">Shrub (+3m)</option>
+                <option value="suburban">Trees (+10m)</option>
+                <option value="forest">Canopy (+18m)</option>
+                <option value="urban">Urban (+25m)</option>
               </select>
             </div>
             <div>
@@ -591,13 +829,105 @@ export function RealLOSProfiler() {
               <select
                 value={kFactor}
                 onChange={(e) => setKFactor(Number(e.target.value))}
-                className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold font-mono"
+                className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold font-mono text-xs"
               >
                 <option value={1.333}>4/3 (Standard)</option>
                 <option value={1.0}>1.0 (True Earth)</option>
-                <option value={0.67}>2/3 (Sub-refraction)</option>
-                <option value={2.0}>2.0 (Super-refraction)</option>
+                <option value={0.67}>2/3 (Sub-refract)</option>
+                <option value={2.0}>2.0 (Super-refract)</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive Antenna Mast Tuning Sliders */}
+        <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                Live Antenna Mast Clearance Tuning (Real-Time Re-calculation)
+              </span>
+            </div>
+            {profileAnalysis && (profileAnalysis.isDirectObstructed || profileAnalysis.isFresnelObstructed) && (
+              <button
+                type="button"
+                onClick={autoOptimizeTowers}
+                className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-[11px] font-bold shadow-xs transition cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Auto-Optimize for 100% Fresnel Clearance</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* TX Mast Slider */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-blue-600 dark:text-blue-400">TX Mast Height: {txHeight}m</span>
+                <span className="text-[10px] text-slate-400 font-mono">Total AMSL: {(tx.elev || 0) + txHeight}m</span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="150"
+                value={txHeight}
+                onChange={(e) => setTxHeight(Number(e.target.value))}
+                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="text-slate-400">Presets:</span>
+                {[15, 30, 45, 60, 90].map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setTxHeight(h)}
+                    className={cn(
+                      'px-2 py-0.5 rounded border transition font-mono',
+                      txHeight === h
+                        ? 'bg-blue-600 text-white border-blue-600 font-bold'
+                        : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'
+                    )}
+                  >
+                    {h}m
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* RX Mast Slider */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">RX Mast Height: {rxHeight}m</span>
+                <span className="text-[10px] text-slate-400 font-mono">Total AMSL: {(rx.elev || 0) + rxHeight}m</span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="150"
+                value={rxHeight}
+                onChange={(e) => setRxHeight(Number(e.target.value))}
+                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="text-slate-400">Presets:</span>
+                {[15, 30, 45, 60, 90].map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setRxHeight(h)}
+                    className={cn(
+                      'px-2 py-0.5 rounded border transition font-mono',
+                      rxHeight === h
+                        ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
+                        : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'
+                    )}
+                  >
+                    {h}m
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -605,13 +935,16 @@ export function RealLOSProfiler() {
         {/* Quick Link Summary Badge Bar */}
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 font-mono text-[11px]">
           <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">
-            Path Length: <b>{totalDistanceKm.toFixed(2)} km</b>
+            Air Distance: <b>{totalDistanceKm.toFixed(2)} km</b>
           </span>
           <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">
-            Azimuth Bearing: <b>332.4°</b>
+            Terrain Surface: <b>{surfaceTerrainDistanceKm.toFixed(2)} km</b>
           </span>
           <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">
-            Elevation Resolution: <b>{sampleCount} Samples</b>
+            Azimuth: <b>{azimuths.forward}°</b> (Reverse: {azimuths.reverse}°)
+          </span>
+          <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">
+            Clutter: <b>{CLUTTER_MAP[clutterType].label}</b>
           </span>
           {index.length > 0 && (
             <span className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold">
@@ -623,11 +956,11 @@ export function RealLOSProfiler() {
 
       {/* Key Metric Results Cards */}
       {profileAnalysis && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Clearance Status Card */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          {/* 1. Clearance Status Card */}
           <div
             className={cn(
-              'p-3.5 rounded-2xl border flex flex-col justify-between shadow-xs',
+              'p-3 rounded-2xl border flex flex-col justify-between shadow-xs',
               !profileAnalysis.isDirectObstructed && !profileAnalysis.isFresnelObstructed
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200'
                 : !profileAnalysis.isDirectObstructed
@@ -636,9 +969,9 @@ export function RealLOSProfiler() {
             )}
           >
             <div className="text-[10px] uppercase font-bold tracking-wider opacity-80">
-              LOS Visibility
+              LOS Status
             </div>
-            <div className="my-1.5 flex items-center gap-1.5 font-bold text-sm">
+            <div className="my-1 flex items-center gap-1.5 font-bold text-sm">
               {!profileAnalysis.isDirectObstructed && !profileAnalysis.isFresnelObstructed ? (
                 <>
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -661,14 +994,27 @@ export function RealLOSProfiler() {
             </div>
           </div>
 
-          {/* Min Clearance */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
+          {/* 2. Air & Terrain Distance Card */}
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
             <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-              Min Ray Clearance
+              Air Distance
+            </div>
+            <div className="my-1 font-mono font-bold text-base text-slate-900 dark:text-slate-100">
+              {totalDistanceKm.toFixed(2)} km
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">
+              Surface: {surfaceTerrainDistanceKm.toFixed(2)} km
+            </div>
+          </div>
+
+          {/* 3. Min Ray Clearance */}
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
+            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+              Min Clearance
             </div>
             <div
               className={cn(
-                'my-1.5 font-mono font-bold text-base',
+                'my-1 font-mono font-bold text-base',
                 profileAnalysis.minClearanceM > 0 ? 'text-emerald-600' : 'text-rose-600'
               )}
             >
@@ -676,18 +1022,18 @@ export function RealLOSProfiler() {
               {profileAnalysis.minClearanceM.toFixed(1)} m
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              Above highest ground peak
+              Above ground peak
             </div>
           </div>
 
-          {/* 60% Fresnel Clearance */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
+          {/* 4. 60% Fresnel Clearance */}
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
             <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-              60% Fresnel Clearance
+              60% Fresnel Zone
             </div>
             <div
               className={cn(
-                'my-1.5 font-mono font-bold text-base',
+                'my-1 font-mono font-bold text-base',
                 profileAnalysis.minFresnelClearanceM > 0 ? 'text-emerald-600' : 'text-amber-500'
               )}
             >
@@ -699,40 +1045,50 @@ export function RealLOSProfiler() {
             </div>
           </div>
 
-          {/* Free Space Path Loss (FSPL) */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
+          {/* 5. Expected RX Level */}
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
             <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-              Free Space Loss (FSPL)
+              Rx Power (RSL)
             </div>
-            <div className="my-1.5 font-mono font-bold text-base text-slate-800 dark:text-slate-100">
-              {profileAnalysis.fsplDb} dB
-            </div>
-            <div className="text-[10px] text-slate-400 font-mono">
-              Diffraction: +{profileAnalysis.diffractionLossDb} dB
-            </div>
-          </div>
-
-          {/* Expected RX Level */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
-            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-              Expected RX Level
-            </div>
-            <div className="my-1.5 font-mono font-bold text-base text-blue-600 dark:text-blue-400">
+            <div className="my-1 font-mono font-bold text-base text-blue-600 dark:text-blue-400">
               {profileAnalysis.rxSignalDbm} dBm
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              Sens: {rxSensitivityDbm} dBm
+              Loss: {profileAnalysis.totalPathLoss} dB
             </div>
           </div>
 
-          {/* Link Margin */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
+          {/* 6. Effective SNR Value */}
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
             <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-              Fade / Link Margin
+              SNR Value
             </div>
             <div
               className={cn(
-                'my-1.5 font-mono font-bold text-base',
+                'my-1 font-mono font-bold text-base',
+                profileAnalysis.effectiveSnr >= 15
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : profileAnalysis.effectiveSnr >= 5
+                  ? 'text-amber-500'
+                  : 'text-rose-600'
+              )}
+            >
+              {profileAnalysis.effectiveSnr >= 0 ? '+' : ''}
+              {profileAnalysis.effectiveSnr} dB
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono truncate">
+              {profileAnalysis.reliabilityTier}
+            </div>
+          </div>
+
+          {/* 7. Link / Fade Margin */}
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between shadow-xs">
+            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+              Fade Margin
+            </div>
+            <div
+              className={cn(
+                'my-1 font-mono font-bold text-base',
                 profileAnalysis.linkMarginDb > 15
                   ? 'text-emerald-600'
                   : profileAnalysis.linkMarginDb > 0
@@ -744,11 +1100,7 @@ export function RealLOSProfiler() {
               {profileAnalysis.linkMarginDb} dB
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              {profileAnalysis.linkMarginDb > 15
-                ? 'High Reliability'
-                : profileAnalysis.linkMarginDb > 0
-                ? 'Marginal Link'
-                : 'No Signal'}
+              Sens: {rxSensitivityDbm} dBm
             </div>
           </div>
         </div>
@@ -761,12 +1113,12 @@ export function RealLOSProfiler() {
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-blue-600" />
               <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100">
-                Terrain Elevation & Fresnel Zone Profile
+                Terrain Elevation & Fresnel Zone Profile (3D AMSL)
               </h2>
             </div>
             <div className="flex items-center gap-3 text-xs font-medium">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-1 bg-amber-600 rounded"></span> Terrain
+                <span className="w-3 h-1 bg-amber-600 rounded"></span> Terrain + Bulge
               </span>
               <span className="flex items-center gap-1.5">
                 <span
@@ -786,7 +1138,7 @@ export function RealLOSProfiler() {
             </div>
           </div>
 
-          <div className="h-80 w-full">
+          <div className="h-96 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={profileAnalysis.samples}
@@ -818,7 +1170,7 @@ export function RealLOSProfiler() {
                         <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl border border-slate-700 text-xs font-mono space-y-1">
                           <div className="font-bold text-blue-400">Distance: {d.distanceKm} km</div>
                           <div>Effective Terrain: {d.terrain} m</div>
-                          <div>Raw Elevation: {d.rawTerrain} m (Bulge: +{d.earthBulge}m)</div>
+                          <div>Raw Elevation: {d.rawTerrain} m (Bulge: +{d.earthBulge}m{d.clutterM ? `, Clutter: +${d.clutterM}m` : ''})</div>
                           <div className="text-emerald-400 font-bold">LOS Ray: {d.losRay} m</div>
                           <div className="text-purple-300">60% Fresnel Base: {d.fresnel60Bottom} m</div>
                           <div
@@ -884,6 +1236,31 @@ export function RealLOSProfiler() {
                   strokeWidth={2.5}
                   dot={false}
                 />
+                {/* Obstacle Peak Callout */}
+                {profileAnalysis.worstPoint && (
+                  <ReferenceLine
+                    x={profileAnalysis.worstPoint.distanceKm}
+                    stroke={profileAnalysis.isDirectObstructed ? '#ef4444' : '#f59e0b'}
+                    strokeDasharray="3 3"
+                    label={{
+                      value: profileAnalysis.isDirectObstructed ? '🔴 Obstacle Peak' : '⚠️ Min Clearance',
+                      position: 'top',
+                      fill: profileAnalysis.isDirectObstructed ? '#ef4444' : '#f59e0b',
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  />
+                )}
+                {profileAnalysis.worstPoint && (
+                  <ReferenceDot
+                    x={profileAnalysis.worstPoint.distanceKm}
+                    y={profileAnalysis.worstPoint.terrain}
+                    r={5}
+                    fill={profileAnalysis.isDirectObstructed ? '#ef4444' : '#f59e0b'}
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
